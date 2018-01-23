@@ -28,9 +28,6 @@ pub const PSEUDO_BASE: Base = '$' as Base;
 pub const PSEUDO_BP: BasePair = (PSEUDO_BASE, PSEUDO_BASE);
 pub const MAX_IL_LEN: usize = 30;
 pub const MAX_SPAN_OF_INDEX_PAIR_CLOSING_IL: usize = MAX_IL_LEN + 2;
-// const AVOGADRO_CONST: Energy = 6.022_140_857 * 1_00000_00000_00000_00000_000. as Energy; // The unit is [/ mol].
-// const BOLTZMANN_CONST: Energy = GAS_CONST as Energy / AVOGADRO_CONST; // The unit is [kcal * mol / (K * mol)] = [kcal / K].
-// pub const INVERSE_TEMPERATURE: Energy = 1. / (BOLTZMANN_CONST * TEMPERATURE as Energy); // The unit is [K / (kcal * K)] = [/ kcal].
 pub const INVERSE_TEMPERATURE: Energy = 1. / (GAS_CONST as Energy * TEMPERATURE as Energy); // The unit is [K * mol / (kcal * K)] = [mol / kcal].
 const INVERSE_LOG2_E: LogPf = 1. / LOG2_E;
 pub const MIN_SPAN_OF_INDEX_PAIR_CLOSING_ML: usize = MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL * 2 + 2;
@@ -54,8 +51,8 @@ pub fn is_able_to_bp(bp: &BasePair) -> bool {
 }
 
 #[inline]
-pub fn get_hl_fe(seq_with_pbs: SeqSlice, pp_closing_loop: &PosPair) -> FreeEnergy {
-  let hl = &seq_with_pbs[pp_closing_loop.0 .. pp_closing_loop.1 + 1];
+pub fn get_hl_fe(seq: SeqSlice, pp_closing_loop: &PosPair) -> FreeEnergy {
+  let hl = &seq[pp_closing_loop.0 .. pp_closing_loop.1 + 1];
   match SPECIAL_HL_DELTA_FES.get(hl) {
     Some(&fe) => fe,
     None => {
@@ -63,13 +60,13 @@ pub fn get_hl_fe(seq_with_pbs: SeqSlice, pp_closing_loop: &PosPair) -> FreeEnerg
       if hl_len == MIN_HL_LEN {
         INIT_HL_DELTA_FES[hl_len] + if is_all_c_hl(hl) {HL_OF_3_CS_PENALTY_DELTA_FE} else {0.}
       } else {
-        let bp_closing_hl = (seq_with_pbs[pp_closing_loop.0], seq_with_pbs[pp_closing_loop.1]);
-        let tm = (seq_with_pbs[pp_closing_loop.0 + 1], seq_with_pbs[pp_closing_loop.1 - 1]);
-        let seq_len = seq_with_pbs.len();
+        let bp_closing_hl = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+        let tm = (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]);
+        let seq_len = seq.len();
         let pair_of_4_bases_preceding_bp_closing_hl = if pp_closing_loop.0 > 1 && pp_closing_loop.1 < seq_len - 2 {
           Some((
-            (seq_with_pbs[pp_closing_loop.0 - 2], seq_with_pbs[pp_closing_loop.0 - 1]),
-            (seq_with_pbs[pp_closing_loop.1 + 1], seq_with_pbs[pp_closing_loop.1 + 2])
+            (seq[pp_closing_loop.0 - 2], seq[pp_closing_loop.0 - 1]),
+            (seq[pp_closing_loop.1 + 1], seq[pp_closing_loop.1 + 2])
           ))
         } else {None};
         INIT_HL_DELTA_FES[hl_len] 
@@ -92,32 +89,32 @@ pub fn get_hl_fe(seq_with_pbs: SeqSlice, pp_closing_loop: &PosPair) -> FreeEnerg
 }
 
 #[inline]
-pub fn get_2_loop_fe(seq_with_pbs: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+pub fn get_2_loop_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
   if pp_closing_loop.0 + 1 == accessible_pp.0 && pp_closing_loop.1 - 1 == accessible_pp.1 {
-    get_stack_fe(seq_with_pbs, pp_closing_loop, accessible_pp)
+    get_stack_fe(seq, pp_closing_loop, accessible_pp)
   } else if pp_closing_loop.0 + 1 == accessible_pp.0 || pp_closing_loop.1 - 1 == accessible_pp.1 {
-    get_bl_fe(seq_with_pbs, pp_closing_loop, accessible_pp)
+    get_bl_fe(seq, pp_closing_loop, accessible_pp)
   } else {
-    get_il_fe(seq_with_pbs, pp_closing_loop, accessible_pp)
+    get_il_fe(seq, pp_closing_loop, accessible_pp)
   }
 }
 
 #[inline]
-fn get_stack_fe(seq_with_pbs: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
-  let bp_closing_loop = (seq_with_pbs[pp_closing_loop.0], seq_with_pbs[pp_closing_loop.1]);
-  let accessible_bp = (seq_with_pbs[accessible_pp.0], seq_with_pbs[accessible_pp.1]);
+fn get_stack_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
   STACK_DELTA_FES[&(bp_closing_loop, accessible_bp)]
 }
 
 #[inline]
-fn get_bl_fe(seq_with_pbs: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+fn get_bl_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
   let bl_len = accessible_pp.0 - pp_closing_loop.0 + pp_closing_loop.1 - accessible_pp.1 - 2;
   if bl_len == 1 {
-    let bulge = if pp_closing_loop.0 + 1 == accessible_pp.0 {seq_with_pbs[accessible_pp.1 + 1]} else {seq_with_pbs[accessible_pp.0 - 1]};
-    let bp_adjacent_2_bulge = if pp_closing_loop.0 + 1 == accessible_pp.0 {(seq_with_pbs[accessible_pp.1], seq_with_pbs[pp_closing_loop.1])} else {(seq_with_pbs[pp_closing_loop.0], seq_with_pbs[accessible_pp.0])};
+    let bulge = if pp_closing_loop.0 + 1 == accessible_pp.0 {seq[accessible_pp.1 + 1]} else {seq[accessible_pp.0 - 1]};
+    let bp_adjacent_2_bulge = if pp_closing_loop.0 + 1 == accessible_pp.0 {(seq[accessible_pp.1], seq[pp_closing_loop.1])} else {(seq[pp_closing_loop.0], seq[accessible_pp.0])};
     INIT_BL_DELTA_FES[bl_len]
     + if (pp_closing_loop.0 + 1 == accessible_pp.0 && bulge == C && (bp_adjacent_2_bulge.0 == C || bp_adjacent_2_bulge.1 == C)) || (pp_closing_loop.1 - 1 == accessible_pp.1 && bulge == C && (bp_adjacent_2_bulge.0 == C || bp_adjacent_2_bulge.1 == C)) {BL_SPECIAL_C_BULGE_BONUS_DELTA_FE} else {0.}
-    + get_stack_fe(seq_with_pbs, pp_closing_loop, accessible_pp)
+    + get_stack_fe(seq, pp_closing_loop, accessible_pp)
   } else {
     if bl_len <= MAX_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_LOOP_DELTA_FE {
       INIT_BL_DELTA_FES[bl_len]
@@ -128,35 +125,35 @@ fn get_bl_fe(seq_with_pbs: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &
 }
 
 #[inline]
-fn get_il_fe(seq_with_pbs: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
-  let bp_closing_loop = (seq_with_pbs[pp_closing_loop.0], seq_with_pbs[pp_closing_loop.1]);
-  let accessible_bp = (seq_with_pbs[accessible_pp.0], seq_with_pbs[accessible_pp.1]);
+fn get_il_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
   let pair_of_nums_of_unpaired_bases = (accessible_pp.0 - pp_closing_loop.0 - 1, pp_closing_loop.1 - accessible_pp.1 - 1);
   let il_len = pair_of_nums_of_unpaired_bases.0 + pair_of_nums_of_unpaired_bases.1;
   match il_len {
     2 => {
-      let il = (seq_with_pbs[pp_closing_loop.0 + 1], seq_with_pbs[pp_closing_loop.1 - 1]);
+      let il = (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]);
       ONE_VS_1_IL_DELTA_FES[&(bp_closing_loop, il, accessible_bp)]
     },
     3 => {
       let il = if pair_of_nums_of_unpaired_bases.0 == 1 {
-        ((seq_with_pbs[pp_closing_loop.0 + 1], seq_with_pbs[pp_closing_loop.1 - 1]), seq_with_pbs[pp_closing_loop.1 - 2])
+        ((seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]), seq[pp_closing_loop.1 - 2])
       } else {
-        ((seq_with_pbs[pp_closing_loop.1 - 1], seq_with_pbs[pp_closing_loop.0 + 2]), seq_with_pbs[pp_closing_loop.0 + 1])
+        ((seq[pp_closing_loop.1 - 1], seq[pp_closing_loop.0 + 2]), seq[pp_closing_loop.0 + 1])
       };
       ONE_VS_2_IL_DELTA_FES[&if pair_of_nums_of_unpaired_bases.0 == 1 {(bp_closing_loop, il, accessible_bp)} else {(invert_bp(&accessible_bp), il, invert_bp(&bp_closing_loop))}]
     },
     4 => {
       let il = (
-        (seq_with_pbs[pp_closing_loop.0 + 1], seq_with_pbs[pp_closing_loop.1 - 1]),
-        (seq_with_pbs[pp_closing_loop.0 + 2], seq_with_pbs[pp_closing_loop.1 - 2])
+        (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]),
+        (seq[pp_closing_loop.0 + 2], seq[pp_closing_loop.1 - 2])
       );
       TWO_VS_2_IL_DELTA_FES[&(bp_closing_loop, il, accessible_bp)]
     },
     _ => {
       get_init_il_delta_fe(il_len)
       + IL_ASYMMETRY_PENALTY_DELTA_FE * abs(pair_of_nums_of_unpaired_bases.0, pair_of_nums_of_unpaired_bases.1) as FreeEnergy
-      + get_il_tm_bonus_delta_fe(seq_with_pbs, pp_closing_loop, accessible_pp, &pair_of_nums_of_unpaired_bases)
+      + get_il_tm_bonus_delta_fe(seq, pp_closing_loop, accessible_pp, &pair_of_nums_of_unpaired_bases)
       + if bp_closing_loop == AU || bp_closing_loop == GU {IL_AU_OR_GU_CLOSURE_PENALTY_DELTA_FE} else {0.}
       + if accessible_bp == AU || accessible_bp == GU {IL_AU_OR_GU_CLOSURE_PENALTY_DELTA_FE} else {0.}
     },
@@ -179,10 +176,10 @@ fn invert_bp(bp: &BasePair) -> BasePair {(bp.1, bp.0)}
 fn abs(x: usize, y: usize) -> usize {max(x, y) - min(x, y)}
 
 #[inline]
-fn get_il_tm_bonus_delta_fe(seq_with_pbs: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair, pair_of_nums_of_unpaired_bases: &NumPair) -> FreeEnergy {
+fn get_il_tm_bonus_delta_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair, pair_of_nums_of_unpaired_bases: &NumPair) -> FreeEnergy {
   let tm_pair = (
-    (seq_with_pbs[pp_closing_loop.0 + 1], seq_with_pbs[pp_closing_loop.1 - 1]),
-    (seq_with_pbs[accessible_pp.0 - 1], seq_with_pbs[accessible_pp.1 + 1])
+    (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]),
+    (seq[accessible_pp.0 - 1], seq[accessible_pp.1 + 1])
   );
   match *pair_of_nums_of_unpaired_bases {
     (1, _) => 0.,
@@ -218,12 +215,8 @@ fn is_all_c_hl(hl: SeqSlice) -> bool {
   return true;
 }
 
-/* #[inline]
-pub fn get_boltzmann_factor(energy: Energy) -> Energy {(- INVERSE_TEMPERATURE * energy).exp()} */
-
 #[inline]
 pub fn logsumexp(xs: SliceOfEpsOfTerms4LogPf, max: ExpPartOfTerm4LogPf) -> LogPf {
-  // ln(xs.iter().fold(0., |acc, &x| acc + (x - max).exp())) + max
   if !max.is_finite() {
     ln(xs.iter().fold(0., |acc, &x| acc + x.exp()))
   } else {

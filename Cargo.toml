@@ -15,7 +15,3 @@ lazy_static = "0.1"
 [lib]
 path = "src/lib.rs"
 name = "rna_algos"
-
-[[test]]
-path = "src/tests.rs"
-name = "tests"
