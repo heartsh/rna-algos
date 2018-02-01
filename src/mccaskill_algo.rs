@@ -1,12 +1,6 @@
 use utils::*;
 use std::f64::NEG_INFINITY;
 
-pub type Probs = Vec<Prob>;
-pub type ProbMatrix = Vec<Probs>;
-pub type LogProbs = Vec<LogProb>;
-pub type LogProbMatrix = Vec<LogProbs>;
-type LogPartialPfs = Vec<LogPf>;
-type LogPpfMatrix = Vec<LogPartialPfs>;
 pub struct LogSsPpfMatrices {
   pub log_ss_ppf_matrix: LogPpfMatrix,
   log_ss_ppf_matrix_4_rightmost_base_pairings: LogPpfMatrix,

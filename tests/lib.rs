@@ -32,8 +32,8 @@ fn test_log_ss_ppf_matrix() {
 fn test_bpp_matrix_and_ubps() {
   let (bpp_matrix, ubps) = get_bpp_matrix_and_unpaired_base_probs(&TEST_SEQ[..]);
   println!("The base pairing matrix for the seq. \"{}\" = \"{:?}\".", String::from_utf8_lossy(&TEST_SEQ[..]), &bpp_matrix);
-  for bpps in bpp_matrix {
-    for bpp in bpps {assert!((0. <= bpp && bpp <= 1.));}
+  for bpps in &bpp_matrix {
+    for &bpp in bpps {assert!((0. <= bpp && bpp <= 1.));}
   }
   println!("The unpaired base probs. for the seq. \"{}\" = \"{:?}\".", String::from_utf8_lossy(&TEST_SEQ[..]), &ubps);
   for ubp in ubps {assert!((0. <= ubp && ubp <= 1.));}

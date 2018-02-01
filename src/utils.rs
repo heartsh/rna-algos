@@ -4,28 +4,16 @@ use rna_ss_params::terminal_mismatch_params::*;
 use rna_ss_params::helix_params::*;
 use rna_ss_params::bulge_loop_params::*;
 use rna_ss_params::internal_loop_params::*;
+pub use bio_seq_algos::utils::*;
 pub use std::cmp::{min, max};
 use std::f64::consts::LOG2_E;
 
-pub type SeqSlice<'a> = &'a[Base];
-pub type Prob = f64;
-pub type LogProb = Prob;
-pub type PartitionFunc = Prob;
-pub type LogPf = PartitionFunc;
 pub type Pos = usize;
 pub type PosPair = (Pos, Pos);
 pub type Num = usize;
 type NumPair = (Num, Num);
 pub type Energy = Prob;
-pub type ExpPartOfTerm4LogPf = PartitionFunc;
-pub type EpsOfTerms4LogPf = Vec<ExpPartOfTerm4LogPf>;
-pub type SliceOfEpsOfTerms4LogPf<'a> = &'a[ExpPartOfTerm4LogPf];
-pub type ExpPartOfTerm4LogProb = Prob;
-pub type EpsOfTerms4LogProb = Vec<ExpPartOfTerm4LogProb>;
-pub type SliceOfEpsOfTerms4LogProb<'a> = &'a[ExpPartOfTerm4LogProb];
 
-pub const PSEUDO_BASE: Base = '$' as Base;
-pub const PSEUDO_BP: BasePair = (PSEUDO_BASE, PSEUDO_BASE);
 pub const MAX_IL_LEN: usize = 30;
 pub const MAX_SPAN_OF_INDEX_PAIR_CLOSING_IL: usize = MAX_IL_LEN + 2;
 pub const INVERSE_TEMPERATURE: Energy = 1. / (GAS_CONST as Energy * TEMPERATURE as Energy); // The unit is [K * mol / (kcal * K)] = [mol / kcal].
@@ -43,11 +31,6 @@ pub fn is_canonical(bp: &BasePair) -> bool {
     Some(_) => true,
     None => false
   }
-}
-
-#[inline]
-pub fn is_able_to_bp(bp: &BasePair) -> bool {
-  is_canonical(bp) || *bp == PSEUDO_BP
 }
 
 #[inline]

@@ -2,7 +2,7 @@
 name = "rna-algos"
 version = "0.1.0"
 authors = ["heartsh <heartsh@heartsh.io>"]
-description = "RNA algorithms"
+description = "Library of Algorithms about RNAs"
 repository = "https://github.com/heartsh/rna-algos"
 readme = "README.md"
 keywords = ["bioinformatics", "rna", "secondary-structure"]
@@ -11,6 +11,7 @@ license = "MIT"
 [dependencies]
 rna-ss-params = "0.1"
 lazy_static = "0.1"
+bio-seq-algos = "0.1"
 
 [lib]
 path = "src/lib.rs"
