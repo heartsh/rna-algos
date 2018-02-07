@@ -1,5 +1,4 @@
 use utils::*;
-use std::f64::NEG_INFINITY;
 
 pub struct LogSsPpfMatrices {
   pub log_ss_ppf_matrix: LogPpfMatrix,
