@@ -1,3 +1,4 @@
+use rna_ss_params::utils;
 pub use rna_ss_params::utils::*;
 pub use rna_ss_params::hairpin_loop_params::*;
 use rna_ss_params::terminal_mismatch_params::*;
@@ -6,7 +7,6 @@ use rna_ss_params::bulge_loop_params::*;
 use rna_ss_params::internal_loop_params::*;
 pub use bio_seq_algos::utils::*;
 pub use std::cmp::{min, max};
-use std::f64::consts::LOG2_E;
 
 pub type Pos = usize;
 pub type PosPair = (Pos, Pos);
@@ -17,7 +17,6 @@ pub type Energy = Prob;
 pub const MAX_IL_LEN: usize = 30;
 pub const MAX_SPAN_OF_INDEX_PAIR_CLOSING_IL: usize = MAX_IL_LEN + 2;
 pub const INVERSE_TEMPERATURE: Energy = 1. / (GAS_CONST as Energy * TEMPERATURE as Energy); // The unit is [K * mol / (kcal * K)] = [mol / kcal].
-const INVERSE_LOG2_E: LogPf = 1. / LOG2_E;
 pub const MIN_SPAN_OF_INDEX_PAIR_CLOSING_ML: usize = MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL * 2 + 2;
 lazy_static! {
   static ref CANONICAL_BPS: HashMap<BasePair, bool> = {
@@ -102,7 +101,7 @@ fn get_bl_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) 
     if bl_len <= MAX_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_LOOP_DELTA_FE {
       INIT_BL_DELTA_FES[bl_len]
     } else {
-      INIT_BL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_BL_DELTA_FE - 1] + COEFFICENT_4_LOG_EXTRAPOLATION_OF_INIT_BL_DELTA_FE * fast_ln(bl_len as FreeEnergy / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_BL_DELTA_FE - 1) as FreeEnergy)
+      INIT_BL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_BL_DELTA_FE - 1] + COEFFICENT_4_LOG_EXTRAPOLATION_OF_INIT_BL_DELTA_FE * utils::fast_ln(bl_len as FreeEnergy / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_BL_DELTA_FE - 1) as FreeEnergy)
     }
   }
 }
@@ -148,7 +147,7 @@ fn get_init_il_delta_fe(il_len: usize) -> FreeEnergy {
   if il_len <= MAX_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_LOOP_DELTA_FE {
     INIT_IL_DELTA_FES[il_len]
   } else {
-    INIT_IL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_IL_DELTA_FE - 1] + COEFFICENT_4_LOG_EXTRAPOLATION_OF_INIT_IL_DELTA_FE * fast_ln(il_len as FreeEnergy / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_IL_DELTA_FE - 1) as FreeEnergy)
+    INIT_IL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_IL_DELTA_FE - 1] + COEFFICENT_4_LOG_EXTRAPOLATION_OF_INIT_IL_DELTA_FE * utils::fast_ln(il_len as FreeEnergy / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_IL_DELTA_FE - 1) as FreeEnergy)
   }
 }
 
@@ -196,18 +195,4 @@ fn get_il_tm_bonus_delta_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible
 fn is_all_c_hl(hl: SeqSlice) -> bool {
   for base in hl {if *base != C {return false;}}
   return true;
-}
-
-#[inline]
-pub fn logsumexp(xs: SliceOfEpsOfTerms4LogPf, max: ExpPartOfTerm4LogPf) -> LogPf {
-  if !max.is_finite() {
-    ln(xs.iter().fold(0., |acc, &x| acc + x.exp()))
-  } else {
-    ln(xs.iter().fold(0., |acc, &x| acc + (x - max).exp())) + max
-  }
-}
-
-#[inline]
-fn ln(x: PartitionFunc) -> LogPf {
-  x.log2() * INVERSE_LOG2_E
 }
