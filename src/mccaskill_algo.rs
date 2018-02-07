@@ -34,7 +34,7 @@ pub fn mccaskill_algo(seq: SeqSlice) -> ProbMatrix {
 }
 
 #[inline]
-fn get_bpp_matrix(log_bpp_matrix: &LogProbMatrix) -> ProbMatrix {
+pub fn get_bpp_matrix(log_bpp_matrix: &LogProbMatrix) -> ProbMatrix {
   log_bpp_matrix.iter().map(|xs| xs.iter().map(|&x| x.exp()).collect()).collect()
 }
 
