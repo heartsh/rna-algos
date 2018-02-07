@@ -39,6 +39,13 @@ fn get_bpp_matrix(log_bpp_matrix: &LogProbMatrix) -> ProbMatrix {
 }
 
 #[inline]
+pub fn get_log_bpp_matrix(seq: SeqSlice) -> LogProbMatrix {
+  let seq_len = seq.len();
+  let log_ss_ppf_matrices = get_log_ss_ppf_matrices(&seq[..], seq_len);
+  get_log_base_pairing_prob_matrix(&seq[..], &log_ss_ppf_matrices, seq_len)
+}
+
+#[inline]
 pub fn get_bpp_matrix_and_unpaired_base_probs(seq: SeqSlice) -> (ProbMatrix, Probs) {
   let seq_len = seq.len();
   let log_ss_ppf_matrices = get_log_ss_ppf_matrices(&seq[..], seq_len);
