@@ -21,9 +21,9 @@ impl LogSsPpfMatrices {
   }
 }
 
-pub const CONST_4_INIT_ML_DELTA_FE: Energy = 10.1;
-pub const COEFFICENT_4_TERM_OF_NUM_OF_UNPAIRED_BASES_ON_INIT_ML_DELTA_FE: Energy = -0.3;
-pub const COEFFICENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE: Energy = -0.3;
+pub const CONST_4_INIT_ML_DELTA_FE: Energy = 9.3;
+pub const COEFFICENT_4_TERM_OF_NUM_OF_UNPAIRED_BASES_ON_INIT_ML_DELTA_FE: Energy = 0.;
+pub const COEFFICENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE: Energy = -0.9;
 
 #[inline]
 pub fn mccaskill_algo(seq: SeqSlice) -> ProbMatrix {
