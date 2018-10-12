@@ -1,4 +1,4 @@
-use rna_ss_params::utils;
+// use rna_ss_params::utils;
 pub use rna_ss_params::utils::*;
 pub use rna_ss_params::hairpin_loop_params::*;
 use rna_ss_params::terminal_mismatch_params::*;
@@ -101,7 +101,7 @@ fn get_bl_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) 
     if bl_len <= MAX_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_LOOP_DELTA_FE {
       INIT_BL_DELTA_FES[bl_len]
     } else {
-      INIT_BL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_BL_DELTA_FE - 1] + COEFFICENT_4_LOG_EXTRAPOLATION_OF_INIT_BL_DELTA_FE * utils::fast_ln(bl_len as FreeEnergy / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_BL_DELTA_FE - 1) as FreeEnergy)
+      INIT_BL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_BL_DELTA_FE - 1] + COEFFICENT_4_LOG_EXTRAPOLATION_OF_INIT_BL_DELTA_FE * (bl_len as FreeEnergy / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_BL_DELTA_FE - 1) as FreeEnergy).ln()
     }
   }
 }
@@ -147,7 +147,7 @@ fn get_init_il_delta_fe(il_len: usize) -> FreeEnergy {
   if il_len <= MAX_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_LOOP_DELTA_FE {
     INIT_IL_DELTA_FES[il_len]
   } else {
-    INIT_IL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_IL_DELTA_FE - 1] + COEFFICENT_4_LOG_EXTRAPOLATION_OF_INIT_IL_DELTA_FE * utils::fast_ln(il_len as FreeEnergy / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_IL_DELTA_FE - 1) as FreeEnergy)
+    INIT_IL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_IL_DELTA_FE - 1] + COEFFICENT_4_LOG_EXTRAPOLATION_OF_INIT_IL_DELTA_FE * (il_len as FreeEnergy / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_IL_DELTA_FE - 1) as FreeEnergy).ln()
   }
 }
 
