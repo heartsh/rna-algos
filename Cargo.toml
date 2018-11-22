@@ -1,6 +1,6 @@
 [package]
 name = "rna-algos"
-version = "0.1.7"
+version = "0.1.8"
 authors = ["heartsh <heartsh@heartsh.io>"]
 description = "\"rna-algos\", Library of Algorithms about RNAs"
 repository = "https://github.com/heartsh/rna-algos"
@@ -9,9 +9,14 @@ keywords = ["bioinformatics", "rna", "secondary-structure"]
 license = "MIT"
 
 [dependencies]
-rna-ss-params = "0.1"
+# rna-ss-params = "0.1"
+rna-ss-params = {path = "../rna-ss-params"}
 lazy_static = "0.1"
 bio-seq-algos = "0.1"
+scoped_threadpool = "0.1"
+getopts = "0.2"
+bio = "0.20"
+num_cpus = "1.0"
 
 [lib]
 path = "src/lib.rs"

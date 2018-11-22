@@ -29,12 +29,12 @@ fn test_log_ss_ppf_mat() {
 }
 
 #[test]
-fn test_bpp_mat_and_ubps() {
-  let (bpp_mat, ubps) = get_bpp_mat_and_unpaired_base_probs(&TEST_SEQ[..]);
-  println!("The base pairing mat for the seq. \"{}\" = \"{:?}\".", String::from_utf8_lossy(&TEST_SEQ[..]), &bpp_mat);
+fn test_bpp_mat_and_nbpps() {
+  let (bpp_mat, nbpps) = get_bpp_mat_and_nbpps(&TEST_SEQ[..]);
+  println!("The base-pairing matrix for the sequence \"{}\" = \"{:?}\".", String::from_utf8_lossy(&TEST_SEQ[..]), &bpp_mat);
   for bpps in &bpp_mat {
     for &bpp in bpps {assert!((0. <= bpp && bpp <= 1.));}
   }
-  println!("The unpaired base probs. for the seq. \"{}\" = \"{:?}\".", String::from_utf8_lossy(&TEST_SEQ[..]), &ubps);
-  for ubp in ubps {assert!((0. <= ubp && ubp <= 1.));}
+  println!("The not-base-pairing probabilities for the sequence \"{}\" = \"{:?}\".", String::from_utf8_lossy(&TEST_SEQ[..]), &nbpps);
+  for nbpp in nbpps {assert!((0. <= nbpp && nbpp <= 1.));}
 }

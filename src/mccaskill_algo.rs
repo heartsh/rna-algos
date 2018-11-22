@@ -11,25 +11,27 @@ pub struct LogSsPpfMats {
 impl LogSsPpfMats {
   fn new(seq_len: usize) -> LogSsPpfMats {
     let ni_mat = vec![vec![NEG_INFINITY; seq_len]; seq_len];
+    let mut log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls = ni_mat.clone();
+    for i in 0 .. seq_len - 1 {
+      log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls[i + 1][i] = 0.;
+    }
     LogSsPpfMats {
       log_ss_ppf_mat: vec![vec![0.; seq_len]; seq_len],
       log_ss_ppf_mat_4_rightmost_base_pairings: ni_mat.clone(),
       log_ss_ppf_mat_4_base_pairings: ni_mat.clone(),
-      log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls: ni_mat.clone(),
+      log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls: log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls,
       log_ss_ppf_mat_4_rightmost_base_pairings_on_mls: ni_mat,
     }
   }
 }
 
-pub const CONST_4_INIT_ML_DELTA_FE: Energy = 9.3;
 pub const COEFFICENT_4_TERM_OF_NUM_OF_UNPAIRED_BASES_ON_INIT_ML_DELTA_FE: Energy = 0.;
-pub const COEFFICENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE: Energy = -0.9;
 
 #[inline]
 pub fn mccaskill_algo(seq: SeqSlice) -> ProbMat {
   let seq_len = seq.len();
-  let log_ss_ppf_mats = get_log_ss_ppf_mats(&seq[..], seq_len);
-  let log_bpp_mat = get_log_base_pairing_prob_mat(&seq[..], &log_ss_ppf_mats, seq_len);
+  let log_ss_ppf_mats = get_log_ss_ppf_mats(seq, seq_len);
+  let log_bpp_mat = get_log_base_pairing_prob_mat(seq, &log_ss_ppf_mats, seq_len);
   get_bpp_mat(&log_bpp_mat)
 }
 
@@ -46,24 +48,24 @@ pub fn get_log_bpp_mat(seq: SeqSlice) -> LogProbMat {
 }
 
 #[inline]
-pub fn get_bpp_mat_and_unpaired_base_probs(seq: SeqSlice) -> (ProbMat, Probs) {
+pub fn get_bpp_mat_and_nbpps(seq: SeqSlice) -> (ProbMat, Probs) {
   let seq_len = seq.len();
   let log_ss_ppf_mats = get_log_ss_ppf_mats(&seq[..], seq_len);
   let log_bpp_mat = get_log_base_pairing_prob_mat(&seq[..], &log_ss_ppf_mats, seq_len);
-  let mut ubps = vec![NEG_INFINITY; seq_len];
+  let mut nbpps = vec![NEG_INFINITY; seq_len];
   for i in 0 .. seq_len {
     let mut eps_of_terms_4_log_prob = EpsOfTerms4LogProb::new();
     let mut max_ep_of_term_4_log_prob = NEG_INFINITY;
-    for j in 0 .. i {
+    for j in 0 .. seq_len {
       if j == i {continue;}
       let pp = if j < i {(j, i)} else {(i, j)};
       let ep_of_term_4_log_prob = log_bpp_mat[pp.0][pp.1];
       if max_ep_of_term_4_log_prob < ep_of_term_4_log_prob {max_ep_of_term_4_log_prob = ep_of_term_4_log_prob;}
       eps_of_terms_4_log_prob.push(ep_of_term_4_log_prob);
     }
-    ubps[i] = 1. - logsumexp(&eps_of_terms_4_log_prob[..], max_ep_of_term_4_log_prob).exp();
+    nbpps[i] = 1. - logsumexp(&eps_of_terms_4_log_prob[..], max_ep_of_term_4_log_prob).exp();
   }
-  (get_bpp_mat(&log_bpp_mat), ubps)
+  (get_bpp_mat(&log_bpp_mat), nbpps)
 }
 
 #[inline]
@@ -120,8 +122,29 @@ pub fn get_log_ss_ppf_mats(seq: SeqSlice, seq_len: usize) -> LogSsPpfMats {
           }
         }
         if pp_closing_loop.1 - pp_closing_loop.0 + 1 >= MIN_SPAN_OF_INDEX_PAIR_CLOSING_ML {
+          let mut eps_of_terms_4_log_coefficient = EpsOfTerms4LogPf::new();
+          let mut max_ep_of_term_4_log_coefficient = 0.;
+          eps_of_terms_4_log_coefficient.push(max_ep_of_term_4_log_coefficient);
+          let tm = (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]);
+          let ml_tm_delta_fe = ML_TM_DELTA_FES[&(bp_closing_loop, tm)];
+          let ep_of_term_4_log_coefficient = -INVERSE_TEMPERATURE * ml_tm_delta_fe;
+          if ep_of_term_4_log_coefficient.is_finite() {
+            if max_ep_of_term_4_log_coefficient < ep_of_term_4_log_coefficient {max_ep_of_term_4_log_coefficient = ep_of_term_4_log_coefficient;}
+            eps_of_terms_4_log_coefficient.push(ep_of_term_4_log_coefficient);
+          }
+          let ep_of_term_4_log_coefficient = -INVERSE_TEMPERATURE * FIVE_PRIME_DE_DELTA_FES[&(bp_closing_loop, seq[j - 1])];
+          if ep_of_term_4_log_coefficient.is_finite() {
+            if max_ep_of_term_4_log_coefficient < ep_of_term_4_log_coefficient {max_ep_of_term_4_log_coefficient = ep_of_term_4_log_coefficient;}
+            eps_of_terms_4_log_coefficient.push(ep_of_term_4_log_coefficient);
+          }
+          let ep_of_term_4_log_coefficient = -INVERSE_TEMPERATURE * THREE_PRIME_DE_DELTA_FES[&(bp_closing_loop, seq[i + 1])];
+          if ep_of_term_4_log_coefficient.is_finite() {
+            if max_ep_of_term_4_log_coefficient < ep_of_term_4_log_coefficient {max_ep_of_term_4_log_coefficient = ep_of_term_4_log_coefficient;}
+            eps_of_terms_4_log_coefficient.push(ep_of_term_4_log_coefficient);
+          }
+          let log_coefficient = logsumexp(&eps_of_terms_4_log_coefficient[..], max_ep_of_term_4_log_coefficient);
           for k in i + 1 .. j {
-            let ep_of_term_4_log_pf = log_ss_ppf_mats.log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls[i + 1][k - 1] + log_ss_ppf_mats.log_ss_ppf_mat_4_rightmost_base_pairings_on_mls[k][j - 1] - INVERSE_TEMPERATURE * (CONST_4_INIT_ML_DELTA_FE + COEFFICENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE);
+            let ep_of_term_4_log_pf = log_coefficient + log_ss_ppf_mats.log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls[i + 1][k - 1] + log_ss_ppf_mats.log_ss_ppf_mat_4_rightmost_base_pairings_on_mls[k][j - 1] - INVERSE_TEMPERATURE * (CONST_4_INIT_ML_DELTA_FE + COEFFICENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE + if bp_closing_loop == AU || bp_closing_loop == UA || bp_closing_loop == GU || bp_closing_loop == UG {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.});
             if max_ep_of_term_4_log_pf < ep_of_term_4_log_pf {max_ep_of_term_4_log_pf = ep_of_term_4_log_pf;}
             if ep_of_term_4_log_pf.is_finite() {eps_of_terms_4_log_pf.push(ep_of_term_4_log_pf);}
           }
@@ -134,10 +157,35 @@ pub fn get_log_ss_ppf_mats(seq: SeqSlice, seq_len: usize) -> LogSsPpfMats {
       let mut max_ep_of_term_4_log_pf = NEG_INFINITY;
       for k in i + MIN_HL_LEN + 1 .. j + 1 {
         let accessible_pp = (i, k);
-        let ep_of_term_4_log_pf = log_ss_ppf_mats.log_ss_ppf_mat_4_base_pairings[accessible_pp.0][accessible_pp.1];
+        let accessible_bp = invert_bp(&(seq[i], seq[k]));
+        let log_ss_pf_4_bp = log_ss_ppf_mats.log_ss_ppf_mat_4_base_pairings[accessible_pp.0][accessible_pp.1];
+        if !log_ss_pf_4_bp.is_finite() {continue;}
+        let log_coefficient = log_ss_pf_4_bp - INVERSE_TEMPERATURE * (if accessible_bp == AU || accessible_bp == UA || accessible_bp == GU || accessible_bp == UG {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.} + HELIX_INTERMOLECULAR_INIT_DELTA_FE);
+        let ep_of_term_4_log_pf = log_coefficient;
         if ep_of_term_4_log_pf.is_finite() {
           if max_ep_of_term_4_log_pf < ep_of_term_4_log_pf {max_ep_of_term_4_log_pf = ep_of_term_4_log_pf;}
           eps_of_terms_4_log_pf.push(ep_of_term_4_log_pf);
+        }
+        if i > 0 && k < seq_len - 1 {
+          let ep_of_term_4_log_pf = log_coefficient - INVERSE_TEMPERATURE * ML_TM_DELTA_FES[&(accessible_bp, invert_bp(&(seq[i - 1], seq[k + 1])))];
+          if ep_of_term_4_log_pf.is_finite() {
+            if max_ep_of_term_4_log_pf < ep_of_term_4_log_pf {max_ep_of_term_4_log_pf = ep_of_term_4_log_pf;}
+            eps_of_terms_4_log_pf.push(ep_of_term_4_log_pf);
+          }
+        }
+        if i > 0 {
+          let ep_of_term_4_log_pf = log_coefficient - INVERSE_TEMPERATURE * FIVE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[i - 1])];
+          if ep_of_term_4_log_pf.is_finite() {
+            if max_ep_of_term_4_log_pf < ep_of_term_4_log_pf {max_ep_of_term_4_log_pf = ep_of_term_4_log_pf;}
+            eps_of_terms_4_log_pf.push(ep_of_term_4_log_pf);
+          }
+        }
+        if k < seq_len - 1 {
+          let ep_of_term_4_log_pf = log_coefficient - INVERSE_TEMPERATURE * THREE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[k + 1])];
+          if ep_of_term_4_log_pf.is_finite() {
+            if max_ep_of_term_4_log_pf < ep_of_term_4_log_pf {max_ep_of_term_4_log_pf = ep_of_term_4_log_pf;}
+            eps_of_terms_4_log_pf.push(ep_of_term_4_log_pf);
+          }
         }
       }
       if eps_of_terms_4_log_pf.len() > 0 {
@@ -154,40 +202,62 @@ pub fn get_log_ss_ppf_mats(seq: SeqSlice, seq_len: usize) -> LogSsPpfMats {
           eps_of_terms_4_log_pf.push(ep_of_term_4_log_pf);
         }
       }
+      log_ss_ppf_mats.log_ss_ppf_mat[i][j] = logsumexp(&eps_of_terms_4_log_pf[..], max_ep_of_term_4_log_pf);
+      let mut eps_of_terms_4_log_pf = EpsOfTerms4LogPf::new();
+      let mut max_ep_of_term_4_log_pf = NEG_INFINITY;
+      for k in i + MIN_HL_LEN + 1 .. j + 1 {
+        let accessible_pp = (i, k);
+        let accessible_bp = invert_bp(&(seq[accessible_pp.0], seq[accessible_pp.1]));
+        let log_ss_ppf_4_base_pairing = log_ss_ppf_mats.log_ss_ppf_mat_4_base_pairings[accessible_pp.0][accessible_pp.1];
+        if !log_ss_ppf_4_base_pairing.is_finite() {continue;}
+        let log_coefficient = log_ss_ppf_4_base_pairing - INVERSE_TEMPERATURE * (COEFFICENT_4_TERM_OF_NUM_OF_UNPAIRED_BASES_ON_INIT_ML_DELTA_FE * (j - k) as Energy + if accessible_bp == AU || accessible_bp == UA || accessible_bp == GU || accessible_bp == UG {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.} + HELIX_INTERMOLECULAR_INIT_DELTA_FE);
+        let ep_of_term_4_log_pf = log_coefficient;
+        if ep_of_term_4_log_pf.is_finite() {
+          if max_ep_of_term_4_log_pf < ep_of_term_4_log_pf {max_ep_of_term_4_log_pf = ep_of_term_4_log_pf;}
+          eps_of_terms_4_log_pf.push(ep_of_term_4_log_pf);
+        }
+        if i > 0 && k < seq_len - 1 {
+          let ep_of_term_4_log_pf = log_coefficient - INVERSE_TEMPERATURE * ML_TM_DELTA_FES[&(accessible_bp, invert_bp(&(seq[i - 1], seq[k + 1])))];
+          if ep_of_term_4_log_pf.is_finite() {
+            if max_ep_of_term_4_log_pf < ep_of_term_4_log_pf {max_ep_of_term_4_log_pf = ep_of_term_4_log_pf;}
+            eps_of_terms_4_log_pf.push(ep_of_term_4_log_pf);
+          }
+        }
+        if i > 0 {
+          let ep_of_term_4_log_pf = log_coefficient - INVERSE_TEMPERATURE * FIVE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[i - 1])];
+          if ep_of_term_4_log_pf.is_finite() {
+            if max_ep_of_term_4_log_pf < ep_of_term_4_log_pf {max_ep_of_term_4_log_pf = ep_of_term_4_log_pf;}
+            eps_of_terms_4_log_pf.push(ep_of_term_4_log_pf);
+          }
+        }
+        if k < seq_len - 1 {
+          let ep_of_term_4_log_pf = log_coefficient - INVERSE_TEMPERATURE * THREE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[k + 1])];
+          if ep_of_term_4_log_pf.is_finite() {
+            if max_ep_of_term_4_log_pf < ep_of_term_4_log_pf {max_ep_of_term_4_log_pf = ep_of_term_4_log_pf;}
+            eps_of_terms_4_log_pf.push(ep_of_term_4_log_pf);
+          }
+        }
+      }
       if eps_of_terms_4_log_pf.len() > 0 {
-        log_ss_ppf_mats.log_ss_ppf_mat[i][j] = logsumexp(&eps_of_terms_4_log_pf[..], max_ep_of_term_4_log_pf);
+        log_ss_ppf_mats.log_ss_ppf_mat_4_rightmost_base_pairings_on_mls[i][j] = logsumexp(&eps_of_terms_4_log_pf[..], max_ep_of_term_4_log_pf);
       }
       let mut eps_of_terms_4_log_pf = EpsOfTerms4LogPf::new();
       let mut max_ep_of_term_4_log_pf = NEG_INFINITY;
-      let min_k = i + 1;
-      let sup_k = j + 1;
-      for k in min_k .. sup_k {
+      for k in i .. if j < MIN_HL_LEN {0} else {j - MIN_HL_LEN} {
         let mut eps_of_sub_terms_4_log_pf = EpsOfTerms4LogPf::new();
         let mut max_ep_of_sub_term_4_log_pf = -INVERSE_TEMPERATURE * COEFFICENT_4_TERM_OF_NUM_OF_UNPAIRED_BASES_ON_INIT_ML_DELTA_FE * (k - i) as Energy;
         eps_of_sub_terms_4_log_pf.push(max_ep_of_sub_term_4_log_pf);
-        let ep_of_sub_term_4_log_pf = log_ss_ppf_mats.log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls[i][k - 1];
+        let ep_of_sub_term_4_log_pf = if k < 1 {0.} else {log_ss_ppf_mats.log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls[i][k - 1]};
         if max_ep_of_sub_term_4_log_pf < ep_of_sub_term_4_log_pf {max_ep_of_sub_term_4_log_pf = ep_of_sub_term_4_log_pf;}
         eps_of_sub_terms_4_log_pf.push(ep_of_sub_term_4_log_pf);
         let ep_of_term_4_log_pf = logsumexp(&eps_of_sub_terms_4_log_pf[..], max_ep_of_sub_term_4_log_pf) + log_ss_ppf_mats.log_ss_ppf_mat_4_rightmost_base_pairings_on_mls[k][j] - INVERSE_TEMPERATURE * COEFFICENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE;
-        if max_ep_of_term_4_log_pf < ep_of_term_4_log_pf {max_ep_of_term_4_log_pf = ep_of_term_4_log_pf;}
-        if ep_of_term_4_log_pf.is_finite() {eps_of_terms_4_log_pf.push(ep_of_term_4_log_pf);}
-      }
-      if eps_of_terms_4_log_pf.len() > 0 {
-        log_ss_ppf_mats.log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls[i][j] = logsumexp(&eps_of_terms_4_log_pf[..], max_ep_of_term_4_log_pf);
-      }
-      let mut eps_of_terms_4_log_pf = EpsOfTerms4LogPf::new();
-      let mut max_ep_of_term_4_log_pf = NEG_INFINITY;
-      for k in min_k .. sup_k {
-        let accessible_pp = (i, k);
-        let log_ss_ppf_4_base_pairing = log_ss_ppf_mats.log_ss_ppf_mat_4_base_pairings[accessible_pp.0][accessible_pp.1];
-        if log_ss_ppf_4_base_pairing.is_finite() {
-          let ep_of_term_4_log_pf = log_ss_ppf_4_base_pairing - INVERSE_TEMPERATURE * COEFFICENT_4_TERM_OF_NUM_OF_UNPAIRED_BASES_ON_INIT_ML_DELTA_FE * (j - k) as Energy;
+        if ep_of_term_4_log_pf.is_finite() {
           if max_ep_of_term_4_log_pf < ep_of_term_4_log_pf {max_ep_of_term_4_log_pf = ep_of_term_4_log_pf;}
           eps_of_terms_4_log_pf.push(ep_of_term_4_log_pf);
         }
       }
       if eps_of_terms_4_log_pf.len() > 0 {
-        log_ss_ppf_mats.log_ss_ppf_mat_4_rightmost_base_pairings_on_mls[i][j] = logsumexp(&eps_of_terms_4_log_pf[..], max_ep_of_term_4_log_pf);
+        log_ss_ppf_mats.log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls[i][j] = logsumexp(&eps_of_terms_4_log_pf[..], max_ep_of_term_4_log_pf);
       }
     }
   }
@@ -201,13 +271,38 @@ fn get_log_base_pairing_prob_mat(seq: SeqSlice, log_ss_ppf_mats: &LogSsPpfMats, 
   let mut log_prob_mat_4_mls_1 = log_bpp_mat.clone();
   let mut log_prob_mat_4_mls_2 = log_bpp_mat.clone();
   for sub_seq_len in (MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL .. seq_len + 1).rev() {
-    for i in 0 .. seq_len - sub_seq_len {
+    for i in 0 .. seq_len - sub_seq_len + 1 {
       let j = i + sub_seq_len - 1;
       let accessible_pp = (i, j);
       let log_ss_ppf_4_base_pairing_1 = log_ss_ppf_mats.log_ss_ppf_mat_4_base_pairings[accessible_pp.0][accessible_pp.1];
       if log_ss_ppf_4_base_pairing_1.is_finite() {
         let mut eps_of_terms_4_log_prob = EpsOfTerms4LogProb::new();
-        let mut max_ep_of_term_4_log_prob = if accessible_pp.0 < 1 {0.} else {log_ss_ppf_mats.log_ss_ppf_mat[0][accessible_pp.0 - 1]} + log_ss_ppf_4_base_pairing_1 + if accessible_pp.1 > seq_len - 2 {0.} else {log_ss_ppf_mats.log_ss_ppf_mat[accessible_pp.1 + 1][seq_len - 1]} - log_ss_ppf;
+        let mut eps_of_terms_4_log_coefficient = EpsOfTerms4LogProb::new();
+        let mut max_ep_of_term_4_log_coefficient = 0. as LogProb;
+        eps_of_terms_4_log_coefficient.push(max_ep_of_term_4_log_coefficient);
+        let accessible_bp = invert_bp(&(seq[accessible_pp.0], seq[accessible_pp.1]));
+        if i > 0 && j < seq_len - 1 {
+          let ep_of_term_4_log_coefficient = -INVERSE_TEMPERATURE * ML_TM_DELTA_FES[&(accessible_bp, invert_bp(&(seq[i - 1], seq[j + 1])))];
+          if ep_of_term_4_log_coefficient.is_finite() {
+            if max_ep_of_term_4_log_coefficient < ep_of_term_4_log_coefficient {max_ep_of_term_4_log_coefficient = ep_of_term_4_log_coefficient;}
+            eps_of_terms_4_log_coefficient.push(ep_of_term_4_log_coefficient);
+          }
+        }
+        if i > 0 {
+          let ep_of_term_4_log_coefficient = -INVERSE_TEMPERATURE * FIVE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[i - 1])];
+          if ep_of_term_4_log_coefficient.is_finite() {
+            if max_ep_of_term_4_log_coefficient < ep_of_term_4_log_coefficient {max_ep_of_term_4_log_coefficient = ep_of_term_4_log_coefficient;}
+            eps_of_terms_4_log_coefficient.push(ep_of_term_4_log_coefficient);
+          }
+        }
+        if j < seq_len - 1 {
+          let ep_of_term_4_log_coefficient = -INVERSE_TEMPERATURE * THREE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[j + 1])];
+          if ep_of_term_4_log_coefficient.is_finite() {
+            if max_ep_of_term_4_log_coefficient < ep_of_term_4_log_coefficient {max_ep_of_term_4_log_coefficient = ep_of_term_4_log_coefficient;}
+            eps_of_terms_4_log_coefficient.push(ep_of_term_4_log_coefficient);
+          }
+        }
+        let mut max_ep_of_term_4_log_prob = if accessible_pp.0 < 1 {0.} else {log_ss_ppf_mats.log_ss_ppf_mat[0][accessible_pp.0 - 1]} + log_ss_ppf_4_base_pairing_1 + if accessible_pp.1 > seq_len - 2 {0.} else {log_ss_ppf_mats.log_ss_ppf_mat[accessible_pp.1 + 1][seq_len - 1]} - log_ss_ppf + logsumexp(&eps_of_terms_4_log_coefficient[..], max_ep_of_term_4_log_coefficient) - INVERSE_TEMPERATURE * (if accessible_bp == AU || accessible_bp == UA || accessible_bp == GU || accessible_bp == UG {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.} + HELIX_INTERMOLECULAR_INIT_DELTA_FE);
         eps_of_terms_4_log_prob.push(max_ep_of_term_4_log_prob);
         if i > 0 && j < seq_len - 1 {
           let pp_closing_loop = (i - 1, j + 1);
@@ -259,6 +354,32 @@ fn get_log_base_pairing_prob_mat(seq: SeqSlice, log_ss_ppf_mats: &LogSsPpfMats, 
           }
         }
         if i > 0 && j < seq_len - 1 {
+          let accessible_bp = invert_bp(&(seq[accessible_pp.0], seq[accessible_pp.1]));
+          let mut eps_of_terms_4_log_coefficient = EpsOfTerms4LogProb::new();
+          let mut max_ep_of_term_4_log_coefficient = 0. as LogProb;
+          eps_of_terms_4_log_coefficient.push(max_ep_of_term_4_log_coefficient);
+          if i > 0 && j < seq_len - 1 {
+            let ep_of_term_4_log_coefficient = -INVERSE_TEMPERATURE * ML_TM_DELTA_FES[&(accessible_bp, invert_bp(&(seq[i - 1], seq[j + 1])))];
+            if ep_of_term_4_log_coefficient.is_finite() {
+              if max_ep_of_term_4_log_coefficient < ep_of_term_4_log_coefficient {max_ep_of_term_4_log_coefficient = ep_of_term_4_log_coefficient;}
+              eps_of_terms_4_log_coefficient.push(ep_of_term_4_log_coefficient);
+            }
+          }
+          if i > 0 {
+            let ep_of_term_4_log_coefficient = -INVERSE_TEMPERATURE * FIVE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[i - 1])];
+            if ep_of_term_4_log_coefficient.is_finite() {
+              if max_ep_of_term_4_log_coefficient < ep_of_term_4_log_coefficient {max_ep_of_term_4_log_coefficient = ep_of_term_4_log_coefficient;}
+              eps_of_terms_4_log_coefficient.push(ep_of_term_4_log_coefficient);
+            }
+          }
+          if j < seq_len - 1 {
+            let ep_of_term_4_log_coefficient = -INVERSE_TEMPERATURE * THREE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[j + 1])];
+            if ep_of_term_4_log_coefficient.is_finite() {
+              if max_ep_of_term_4_log_coefficient < ep_of_term_4_log_coefficient {max_ep_of_term_4_log_coefficient = ep_of_term_4_log_coefficient;}
+              eps_of_terms_4_log_coefficient.push(ep_of_term_4_log_coefficient);
+            }
+          }
+          let log_coefficient = log_ss_ppf_4_base_pairing_1 - INVERSE_TEMPERATURE * (CONST_4_INIT_ML_DELTA_FE + COEFFICENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE + if accessible_bp == AU || accessible_bp == UA || accessible_bp == GU || accessible_bp == UG {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.} + HELIX_INTERMOLECULAR_INIT_DELTA_FE) + logsumexp(&eps_of_terms_4_log_coefficient[..], max_ep_of_term_4_log_coefficient);
           for k in 0 .. i {
             let mut eps_of_sub_terms_4_log_prob = EpsOfTerms4LogProb::new();
             let log_ss_ppf_4_at_least_1_base_pairings_on_mls = log_ss_ppf_mats.log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls[k + 1][i - 1];
@@ -271,7 +392,7 @@ fn get_log_base_pairing_prob_mat(seq: SeqSlice, log_ss_ppf_mats: &LogSsPpfMats, 
             let ep_of_sub_term_4_log_prob = log_prob_4_mls + log_ss_ppf_4_at_least_1_base_pairings_on_mls;
             if max_ep_of_sub_term_4_log_prob < ep_of_sub_term_4_log_prob {max_ep_of_sub_term_4_log_prob = ep_of_sub_term_4_log_prob;}
             eps_of_sub_terms_4_log_prob.push(ep_of_sub_term_4_log_prob);
-            let ep_of_term_4_log_prob = log_ss_ppf_4_base_pairing_1 - INVERSE_TEMPERATURE * (CONST_4_INIT_ML_DELTA_FE + COEFFICENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE) + logsumexp(&eps_of_sub_terms_4_log_prob[..], max_ep_of_sub_term_4_log_prob);
+            let ep_of_term_4_log_prob = log_coefficient + logsumexp(&eps_of_sub_terms_4_log_prob[..], max_ep_of_sub_term_4_log_prob);
             if max_ep_of_term_4_log_prob < ep_of_term_4_log_prob {max_ep_of_term_4_log_prob = ep_of_term_4_log_prob;}
             eps_of_terms_4_log_prob.push(ep_of_term_4_log_prob);
           }
@@ -288,11 +409,31 @@ fn get_log_base_pairing_prob_mat(seq: SeqSlice, log_ss_ppf_mats: &LogSsPpfMats, 
         let pp_closing_loop = (i, k);
         let log_ss_ppf_4_base_pairing = log_ss_ppf_mats.log_ss_ppf_mat_4_base_pairings[pp_closing_loop.0][pp_closing_loop.1];
         if log_ss_ppf_4_base_pairing.is_finite() {
+          let bp_closing_loop = (seq[i], seq[k]);
+          let mut eps_of_terms_4_log_coefficient = EpsOfTerms4LogProb::new();
+          let mut max_ep_of_term_4_log_coefficient = 0. as LogProb;
+          eps_of_terms_4_log_coefficient.push(max_ep_of_term_4_log_coefficient);
+          let ep_of_term_4_log_coefficient = -INVERSE_TEMPERATURE * ML_TM_DELTA_FES[&(bp_closing_loop, (seq[i + 1], seq[j - 1]))];
+          if ep_of_term_4_log_coefficient.is_finite() {
+            if max_ep_of_term_4_log_coefficient < ep_of_term_4_log_coefficient {max_ep_of_term_4_log_coefficient = ep_of_term_4_log_coefficient;}
+            eps_of_terms_4_log_coefficient.push(ep_of_term_4_log_coefficient);
+          }
+          let ep_of_term_4_log_coefficient = -INVERSE_TEMPERATURE * FIVE_PRIME_DE_DELTA_FES[&(bp_closing_loop, seq[k - 1])];
+          if ep_of_term_4_log_coefficient.is_finite() {
+            if max_ep_of_term_4_log_coefficient < ep_of_term_4_log_coefficient {max_ep_of_term_4_log_coefficient = ep_of_term_4_log_coefficient;}
+            eps_of_terms_4_log_coefficient.push(ep_of_term_4_log_coefficient);
+          }
+          let ep_of_term_4_log_coefficient = -INVERSE_TEMPERATURE * THREE_PRIME_DE_DELTA_FES[&(bp_closing_loop, seq[i + 1])];
+          if ep_of_term_4_log_coefficient.is_finite() {
+            if max_ep_of_term_4_log_coefficient < ep_of_term_4_log_coefficient {max_ep_of_term_4_log_coefficient = ep_of_term_4_log_coefficient;}
+            eps_of_terms_4_log_coefficient.push(ep_of_term_4_log_coefficient);
+          }
           let log_bpp = log_bpp_mat[pp_closing_loop.0][pp_closing_loop.1];
-          let ep_of_term_4_log_prob = log_bpp - log_ss_ppf_4_base_pairing + log_ss_ppf_mats.log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls[j + 1][pp_closing_loop.1 - 1];
+          let helix_au_or_gu_end_penalty_delta_fe = if bp_closing_loop == AU || bp_closing_loop == UA || bp_closing_loop == GU || bp_closing_loop == UG {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.};
+          let ep_of_term_4_log_prob = log_bpp - log_ss_ppf_4_base_pairing + log_ss_ppf_mats.log_ss_ppf_mat_4_at_least_1_base_pairings_on_mls[j + 1][pp_closing_loop.1 - 1] + logsumexp(&eps_of_terms_4_log_coefficient[..], max_ep_of_term_4_log_coefficient) - INVERSE_TEMPERATURE * helix_au_or_gu_end_penalty_delta_fe;
           if max_ep_of_term_4_log_prob_1 < ep_of_term_4_log_prob {max_ep_of_term_4_log_prob_1 = ep_of_term_4_log_prob;}
           eps_of_terms_4_log_prob_1.push(ep_of_term_4_log_prob);
-          let ep_of_term_4_log_prob = log_bpp - log_ss_ppf_4_base_pairing - INVERSE_TEMPERATURE * COEFFICENT_4_TERM_OF_NUM_OF_UNPAIRED_BASES_ON_INIT_ML_DELTA_FE * (pp_closing_loop.1 - j - 1) as Energy;
+          let ep_of_term_4_log_prob = log_bpp - log_ss_ppf_4_base_pairing + logsumexp(&eps_of_terms_4_log_coefficient[..], max_ep_of_term_4_log_coefficient) - INVERSE_TEMPERATURE * (COEFFICENT_4_TERM_OF_NUM_OF_UNPAIRED_BASES_ON_INIT_ML_DELTA_FE * (pp_closing_loop.1 - j - 1) as Energy + helix_au_or_gu_end_penalty_delta_fe);
           if max_ep_of_term_4_log_prob_2 < ep_of_term_4_log_prob {max_ep_of_term_4_log_prob_2 = ep_of_term_4_log_prob;}
           eps_of_terms_4_log_prob_2.push(ep_of_term_4_log_prob);
         }
