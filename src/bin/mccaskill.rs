@@ -49,7 +49,7 @@ fn main() {
   }
   let num_of_fasta_records = fasta_records.len();
   let mut thread_pool = Pool::new(num_of_threads);
-  let mut bpp_mats = vec![ProbMat::default(); num_of_fasta_records];
+  let mut bpp_mats = vec![ProbMat::new(); num_of_fasta_records];
   thread_pool.scoped(|scope| {
     for (bpp_mat, fasta_record) in bpp_mats.iter_mut().zip(fasta_records.iter_mut()) {
       scope.execute(move || {
