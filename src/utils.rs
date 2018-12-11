@@ -367,3 +367,8 @@ pub fn print_program_usage(program_name: &str, opts: &Options) {
   let program_usage = format!("The usage of this program: {} [options]", program_name);
   print!("{}", opts.usage(&program_usage));
 }
+
+#[inline]
+pub fn is_au_or_gu(bp: &BasePair) -> bool {
+  *bp == AU || *bp == UA || *bp == GU || *bp == UG
+}

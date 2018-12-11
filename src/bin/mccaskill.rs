@@ -60,7 +60,7 @@ fn main() {
   if !output_dir_path.exists() {
     let _ = create_dir(output_dir_path);
   }
-  let mut buf_4_writer_2_bpp_mat_file = format!("; The version {} of the McCaskill program.\n; The path to the input file for computing the Base-Pairing Probability Matrices (= BPPMs) on secondary structure (= SS) in this file = \"{}\".\n; The values of the parameters used to compute these matrices are as follows.\n; \"num_of_threads\" = {}.", VERSION, input_file_path.display(), num_of_threads) + "\n; Each row beginning with \">\" is with the ID of an RNA sequence. The row next to this row is with the BPPM of this sequence on SS.";
+  let mut buf_4_writer_2_bpp_mat_file = format!("; The version {} of the McCaskill program.\n; The path to the input file for computing the Base-Pairing Probability Matrices (= BPPMs) on secondary structure (= SS) in this file = \"{}\".\n; The values of the parameters used for computing these matrices are as follows.\n; \"num_of_threads\" = {}.", VERSION, input_file_path.display(), num_of_threads) + "\n; Each row beginning with \">\" is with the ID of an RNA sequence. The row next to this row is with the BPPM of this sequence on SS.";
   let bpp_mat_file_path = output_dir_path.join(BPP_MAT_FILE_NAME);
   let mut writer_2_bpp_mat_file = BufWriter::new(File::create(bpp_mat_file_path).expect("Failed to create an output file."));
   for (rna_id, bpp_mat) in bpp_mats.iter().enumerate() {
