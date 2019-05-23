@@ -43,11 +43,11 @@ pub fn get_log_bpp_mat(seq: SeqSlice) -> LogProbMat {
 }
 
 #[inline]
-pub fn get_bpp_mat_and_nbpps(seq: SeqSlice) -> (ProbMat, Probs) {
+pub fn get_bpp_and_unpair_prob_mats(seq: SeqSlice) -> (ProbMat, Probs) {
   let seq_len = seq.len();
   let log_ss_ppf_mats = get_log_ss_ppf_mats(&seq[..], seq_len);
   let log_bpp_mat = get_log_base_pairing_prob_mat(&seq[..], &log_ss_ppf_mats, seq_len);
-  let mut nbpps = vec![NEG_INFINITY; seq_len];
+  let mut unpair_prob_mat = vec![NEG_INFINITY; seq_len];
   for i in 0 .. seq_len {
     let mut eps_of_terms_4_log_prob = EpsOfTerms4LogProb::new();
     let mut max_ep_of_term_4_log_prob = NEG_INFINITY;
@@ -58,9 +58,9 @@ pub fn get_bpp_mat_and_nbpps(seq: SeqSlice) -> (ProbMat, Probs) {
       if max_ep_of_term_4_log_prob < ep_of_term_4_log_prob {max_ep_of_term_4_log_prob = ep_of_term_4_log_prob;}
       eps_of_terms_4_log_prob.push(ep_of_term_4_log_prob);
     }
-    nbpps[i] = 1. - logsumexp(&eps_of_terms_4_log_prob[..], max_ep_of_term_4_log_prob).exp();
+    unpair_prob_mat[i] = 1. - logsumexp(&eps_of_terms_4_log_prob[..], max_ep_of_term_4_log_prob).exp();
   }
-  (get_bpp_mat(&log_bpp_mat), nbpps)
+  (get_bpp_mat(&log_bpp_mat), unpair_prob_mat)
 }
 
 #[inline]
