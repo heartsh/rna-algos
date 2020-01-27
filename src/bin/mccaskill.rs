@@ -2,6 +2,7 @@ extern crate rna_algos;
 extern crate scoped_threadpool;
 extern crate bio;
 extern crate num_cpus;
+extern crate itertools;
 
 use rna_algos::mccaskill_algo::*;
 use rna_algos::utils::*;
@@ -17,6 +18,7 @@ use std::fs::create_dir;
 type NumOfThreads = u32;
 
 const BPP_MAT_FILE_NAME: &'static str = "bpp_mats.dat";
+const UPP_MAT_FILE_NAME: &'static str = "upp_mats.dat";
 const VERSION: &'static str = "0.1.8";
 
 fn main() {
@@ -50,17 +52,20 @@ fn main() {
   let num_of_fasta_records = fasta_records.len();
   let mut thread_pool = Pool::new(num_of_threads);
   let mut bpp_mats = vec![ProbMat::new(); num_of_fasta_records];
+  let mut upp_mats = vec![Probs::new(); num_of_fasta_records];
   thread_pool.scoped(|scope| {
-    for (bpp_mat, fasta_record) in bpp_mats.iter_mut().zip(fasta_records.iter_mut()) {
+    for (bpp_mat, upp_mat, fasta_record) in multizip((bpp_mats.iter_mut(), upp_mats.iter_mut(), fasta_records.iter())) {
       scope.execute(move || {
-        *bpp_mat = mccaskill_algo(&fasta_record.seq[..]);
+        let prob_mat_pair = get_bpp_and_unpair_prob_mats(&fasta_record.seq[..]);
+        *bpp_mat = prob_mat_pair.0;
+        *upp_mat = prob_mat_pair.1;
       });
     }
   });
   if !output_dir_path.exists() {
     let _ = create_dir(output_dir_path);
   }
-  let mut buf_4_writer_2_bpp_mat_file = format!("; The version {} of the McCaskill program.\n; The path to the input file for computing the Base-Pairing Probability Matrices (= BPPMs) on secondary structure (= SS) in this file = \"{}\".\n; The values of the parameters used for computing these matrices are as follows.\n; \"num_of_threads\" = {}.", VERSION, input_file_path.display(), num_of_threads) + "\n; Each row beginning with \">\" is with the ID of an RNA sequence. The row next to this row is with the BPPM of this sequence on SS.";
+  let mut buf_4_writer_2_bpp_mat_file = format!("; The version {} of the McCaskill program.\n; The path to the input file in order to compute the base-pairing Probability matrices on secondary structure in this file = \"{}\".\n; The values of the parameters used in order to compute the matrices are as follows.\n; \"num_of_threads\" = {}.", VERSION, input_file_path.display(), num_of_threads) + "\n; Each row beginning with \">\" is with the ID of an RNA sequence. The next row to the row is with the base-pairing probability matrix on secondary structure of the sequence.";
   let bpp_mat_file_path = output_dir_path.join(BPP_MAT_FILE_NAME);
   let mut writer_2_bpp_mat_file = BufWriter::new(File::create(bpp_mat_file_path).expect("Failed to create an output file."));
   for (rna_id, bpp_mat) in bpp_mats.iter().enumerate() {
@@ -75,4 +80,16 @@ fn main() {
     buf_4_writer_2_bpp_mat_file.push_str(&buf_4_rna_id);
   }
   let _ = writer_2_bpp_mat_file.write_all(buf_4_writer_2_bpp_mat_file.as_bytes());
+  let mut buf_4_writer_2_upp_mat_file = format!("; The version {} of the McCaskill program.\n; The path to the input file in order to compute the UnPairing probability matrices on secondary structure in this file = \"{}\".\n; The values of the parameters used in order to compute the matrices are as follows.\n; \"num_of_threads\" = {}.", VERSION, input_file_path.display(), num_of_threads) + "\n; Each row beginning with \">\" is with the ID of an RNA sequence. The next row to the row is with the unpairing probability matrix on secondary structure of the sequence on secondary structure.";
+  let upp_mat_file_path = output_dir_path.join(UPP_MAT_FILE_NAME);
+  let mut writer_2_upp_mat_file = BufWriter::new(File::create(upp_mat_file_path).expect("Failed to create an output file."));
+  for (rna_id, upp_mat) in upp_mats.iter().enumerate() {
+    // let seq_len = fasta_records[rna_id].seq.len();
+    let mut buf_4_rna_id = format!("\n\n>{}\n", rna_id);
+    for (i, &upp) in upp_mat.iter().enumerate() {
+      buf_4_rna_id.push_str(&format!("{},{} ", i, upp));
+    }
+    buf_4_writer_2_upp_mat_file.push_str(&buf_4_rna_id);
+  }
+  let _ = writer_2_upp_mat_file.write_all(buf_4_writer_2_upp_mat_file.as_bytes());
 }

@@ -4,16 +4,16 @@ pub use rna_ss_params::helix_params::*;
 use rna_ss_params::bulge_loop_params::*;
 pub use rna_ss_params::dangling_end_params::*;
 use rna_ss_params::internal_loop_params::*;
-pub use bio_seq_algos::utils::*;
+// pub use bio_seq_algos::utils::*;
 pub use std::cmp::{min, max};
 pub use std::str::from_utf8_unchecked;
 pub use getopts::Options;
+pub use itertools::multizip;
 
 pub type Pos = usize;
 pub type PosPair = (Pos, Pos);
 pub type Num = usize;
 type NumPair = (Num, Num);
-pub type Energy = Prob;
 pub type HlTmDeltaFes = StackDeltaFes;
 pub type IlTmDeltaFes = HlTmDeltaFes;
 pub type MlTmDeltaFes = HlTmDeltaFes;
@@ -28,11 +28,10 @@ pub struct FastaRecord {
 pub type FastaRecords = Vec<FastaRecord>;
 
 pub const MAX_SPAN_OF_INDEX_PAIR_CLOSING_IL: usize = MAX_2_LOOP_LEN + 2;
-pub const INVERSE_TEMPERATURE: Energy = 1. / (GAS_CONST as Energy * TEMPERATURE as Energy); // The unit is [K * mol / (kcal * K)] = [mol / kcal].
 pub const MIN_SPAN_OF_INDEX_PAIR_CLOSING_ML: usize = MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL * 2 + 2;
-pub const HELIX_AU_OR_GU_END_PENALTY_DELTA_FE: FreeEnergy = 0.5;
-pub const MAX_NINIO: FreeEnergy = 3.;
-pub const COEFFICIENT_4_NINIO: FreeEnergy = 0.6;
+pub const HELIX_AU_OR_GU_END_PENALTY_DELTA_FE: FreeEnergy = - INVERSE_TEMPERATURE * 0.5;
+pub const MAX_NINIO: FreeEnergy = - INVERSE_TEMPERATURE * 3.;
+pub const COEFFICIENT_4_NINIO: FreeEnergy = - INVERSE_TEMPERATURE * 0.6;
 lazy_static! {
   static ref CANONICAL_BPS: HashMap<BasePair, bool> = {
     [(AU, true), (CG, true), (GC, true), (GU, true), (UA, true), (UG, true)].iter().cloned().collect()
@@ -69,7 +68,7 @@ lazy_static! {
       ((UA, CA), -0.2),  ((UA, CC), -0.1),  ((UA, CG), -0.2),    ((UA, CU), 0.0),
       ((UA, GA), -1.5),  ((UA, GC), -0.3), ((UA, GG), -1.5),  ((UA, GU), -0.3),
       ((UA, UA), -0.2),  ((UA, UC), -0.1),  ((UA, UG), -0.2),  ((UA, UU), -0.9),
-    ].iter().cloned().collect()
+    ].iter().map(|&(x, y)| {(x, scale(y))}).collect()
   };
   pub static ref IL_TM_DELTA_FES: IlTmDeltaFes = {
     [
@@ -103,7 +102,7 @@ lazy_static! {
       ((UA, CA), 0.7),  ((UA, CC), 0.7),  ((UA, CG), 0.7),    ((UA, CU), 0.7),
       ((UA, GA), -0.3),  ((UA, GC), 0.7), ((UA, GG), -0.3),  ((UA, GU), 0.7),
       ((UA, UA), 0.7),  ((UA, UC), 0.7),  ((UA, UG), 0.7),  ((UA, UU), 0.1),
-    ].iter().cloned().collect()
+    ].iter().map(|&(x, y)| {(x, scale(y))}).collect()
   };
   pub static ref ONE_VS_MANY_IL_TM_DELTA_FES: IlTmDeltaFes = {
     [
@@ -137,7 +136,7 @@ lazy_static! {
       ((UA, CA), 0.7),  ((UA, CC), 0.7),  ((UA, CG), 0.7),    ((UA, CU), 0.7),
       ((UA, GA), 0.7),  ((UA, GC), 0.7), ((UA, GG), 0.7),  ((UA, GU), 0.7),
       ((UA, UA), 0.7),  ((UA, UC), 0.7),  ((UA, UG), 0.7),  ((UA, UU), 0.7),
-    ].iter().cloned().collect()
+    ].iter().map(|&(x, y)| {(x, scale(y))}).collect()
   };
   pub static ref TWO_VS_3_IL_TM_DELTA_FES: IlTmDeltaFes = {
     [
@@ -171,7 +170,7 @@ lazy_static! {
       ((UA, CA), 0.7),  ((UA, CC), 0.7),  ((UA, CG), 0.7),    ((UA, CU), 0.7),
       ((UA, GA), -0.4),  ((UA, GC), 0.7), ((UA, GG), 0.0),  ((UA, GU), 0.7),
       ((UA, UA), 0.7),  ((UA, UC), 0.7),  ((UA, UG), 0.7),  ((UA, UU), 0.4),
-    ].iter().cloned().collect()
+    ].iter().map(|&(x, y)| {(x, scale(y))}).collect()
   };
   pub static ref ML_TM_DELTA_FES: MlTmDeltaFes = {
     [
@@ -205,7 +204,7 @@ lazy_static! {
       ((UA, CA), -0.7),  ((UA, CC), -0.6),  ((UA, CG), -0.7),    ((UA, CU), -0.5),
       ((UA, GA), -1.1),  ((UA, GC), -0.8), ((UA, GG), -1.2),  ((UA, GU), -0.8),
       ((UA, UA), -0.7),  ((UA, UC), -0.6),  ((UA, UG), -0.7),  ((UA, UU), -0.5),
-    ].iter().cloned().collect()
+    ].iter().map(|&(x, y)| {(x, scale(y))}).collect()
   };
 }
 
@@ -322,7 +321,7 @@ fn get_il_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) 
 pub fn invert_bp(bp: &BasePair) -> BasePair {(bp.1, bp.0)}
 
 #[inline]
-fn get_abs_diff(x: usize, y: usize) -> usize {max(x, y) - min(x, y)}
+pub fn get_abs_diff(x: usize, y: usize) -> usize {max(x, y) - min(x, y)}
 
 #[inline]
 fn get_il_tm_delta_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair, pair_of_nums_of_unpaired_bases: &NumPair) -> FreeEnergy {
