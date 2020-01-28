@@ -51,31 +51,29 @@ fn main() {
   }
   let num_of_fasta_records = fasta_records.len();
   let mut thread_pool = Pool::new(num_of_threads);
-  let mut bpp_mats = vec![ProbMat::new(); num_of_fasta_records];
+  let mut bpp_mats = vec![SparseProbMat::default(); num_of_fasta_records];
   let mut upp_mats = vec![Probs::new(); num_of_fasta_records];
+  let mut max_free_energies = vec![0.; num_of_fasta_records];
   thread_pool.scoped(|scope| {
-    for (bpp_mat, upp_mat, fasta_record) in multizip((bpp_mats.iter_mut(), upp_mats.iter_mut(), fasta_records.iter())) {
+    for (bpp_mat, upp_mat, max_free_energy, fasta_record) in multizip((bpp_mats.iter_mut(), upp_mats.iter_mut(), max_free_energies.iter_mut(), fasta_records.iter())) {
       scope.execute(move || {
-        let prob_mat_pair = get_bpp_and_unpair_prob_mats(&fasta_record.seq[..]);
-        *bpp_mat = prob_mat_pair.0;
-        *upp_mat = prob_mat_pair.1;
+        let (obtained_bpp_mat, obtained_upp_mat, obtained_max_free_energy) = get_bpp_and_unpair_prob_mats(&fasta_record.seq[..]);
+        *bpp_mat = obtained_bpp_mat;
+        *upp_mat = obtained_upp_mat;
+        *max_free_energy = obtained_max_free_energy;
       });
     }
   });
   if !output_dir_path.exists() {
     let _ = create_dir(output_dir_path);
   }
-  let mut buf_4_writer_2_bpp_mat_file = format!("; The version {} of the McCaskill program.\n; The path to the input file in order to compute the base-pairing Probability matrices on secondary structure in this file = \"{}\".\n; The values of the parameters used in order to compute the matrices are as follows.\n; \"num_of_threads\" = {}.", VERSION, input_file_path.display(), num_of_threads) + "\n; Each row beginning with \">\" is with the ID of an RNA sequence. The next row to the row is with the base-pairing probability matrix on secondary structure of the sequence.";
+  let mut buf_4_writer_2_bpp_mat_file = format!("; The version {} of the McCaskill program.\n; The path to the input file in order to compute the base-pairing Probability matrices on secondary structure in this file = \"{}\".\n; The values of the parameters used in order to compute the matrices are as follows.\n; \"num_of_threads\" = {}.", VERSION, input_file_path.display(), num_of_threads) + "\n; Each row beginning with \">\" is with the ID of an RNA sequence and (the scaled inverse of) the minimum free energy of the sequence on secondary structure. The next row to the row is with the base-pairing probability matrix on secondary structure of the sequence.";
   let bpp_mat_file_path = output_dir_path.join(BPP_MAT_FILE_NAME);
   let mut writer_2_bpp_mat_file = BufWriter::new(File::create(bpp_mat_file_path).expect("Failed to create an output file."));
   for (rna_id, bpp_mat) in bpp_mats.iter().enumerate() {
     let mut buf_4_rna_id = format!("\n\n>{}\n", rna_id);
-    for (i, bpps) in bpp_mat.iter().enumerate() {
-      for (j, &bpp) in bpps.iter().enumerate() {
-        if bpp > 0. {
-          buf_4_rna_id.push_str(&format!("{},{},{} ", i, j, bpp));
-        }
-      }
+    for (&(i, j), &bpp) in bpp_mat.iter() {
+      buf_4_rna_id.push_str(&format!("{},{},{} ", i, j, bpp));
     }
     buf_4_writer_2_bpp_mat_file.push_str(&buf_4_rna_id);
   }
@@ -84,7 +82,6 @@ fn main() {
   let upp_mat_file_path = output_dir_path.join(UPP_MAT_FILE_NAME);
   let mut writer_2_upp_mat_file = BufWriter::new(File::create(upp_mat_file_path).expect("Failed to create an output file."));
   for (rna_id, upp_mat) in upp_mats.iter().enumerate() {
-    // let seq_len = fasta_records[rna_id].seq.len();
     let mut buf_4_rna_id = format!("\n\n>{}\n", rna_id);
     for (i, &upp) in upp_mat.iter().enumerate() {
       buf_4_rna_id.push_str(&format!("{},{} ", i, upp));

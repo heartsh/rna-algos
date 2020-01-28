@@ -4,7 +4,6 @@ pub use rna_ss_params::helix_params::*;
 use rna_ss_params::bulge_loop_params::*;
 pub use rna_ss_params::dangling_end_params::*;
 use rna_ss_params::internal_loop_params::*;
-// pub use bio_seq_algos::utils::*;
 pub use std::cmp::{min, max};
 pub use std::str::from_utf8_unchecked;
 pub use getopts::Options;
@@ -33,6 +32,9 @@ pub const HELIX_AU_OR_GU_END_PENALTY_DELTA_FE: FreeEnergy = - INVERSE_TEMPERATUR
 pub const MAX_NINIO: FreeEnergy = - INVERSE_TEMPERATURE * 3.;
 pub const COEFFICIENT_4_NINIO: FreeEnergy = - INVERSE_TEMPERATURE * 0.6;
 lazy_static! {
+  pub static ref EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE: FreeEnergy = HELIX_AU_OR_GU_END_PENALTY_DELTA_FE.exp();
+  pub static ref EXP_MAX_NINIO: FreeEnergy = MAX_NINIO.exp();
+  pub static ref EXP_COEFFICIENT_4_NINIO: FreeEnergy = COEFFICIENT_4_NINIO.exp();
   static ref CANONICAL_BPS: HashMap<BasePair, bool> = {
     [(AU, true), (CG, true), (GC, true), (GU, true), (UA, true), (UG, true)].iter().cloned().collect()
   };
@@ -70,6 +72,7 @@ lazy_static! {
       ((UA, UA), -0.2),  ((UA, UC), -0.1),  ((UA, UG), -0.2),  ((UA, UU), -0.9),
     ].iter().map(|&(x, y)| {(x, scale(y))}).collect()
   };
+  pub static ref EXP_HL_TM_DELTA_FES: HlTmDeltaFes = {HL_TM_DELTA_FES.iter().map(|(x, &y)| {(*x, y.exp())}).collect()};
   pub static ref IL_TM_DELTA_FES: IlTmDeltaFes = {
     [
       // For the base pair "AU" against which another base pair is stacked.
@@ -104,6 +107,7 @@ lazy_static! {
       ((UA, UA), 0.7),  ((UA, UC), 0.7),  ((UA, UG), 0.7),  ((UA, UU), 0.1),
     ].iter().map(|&(x, y)| {(x, scale(y))}).collect()
   };
+  pub static ref EXP_IL_TM_DELTA_FES: IlTmDeltaFes = {IL_TM_DELTA_FES.iter().map(|(x, &y)| {(*x, y.exp())}).collect()};
   pub static ref ONE_VS_MANY_IL_TM_DELTA_FES: IlTmDeltaFes = {
     [
       // For the base pair "AU" against which another base pair is stacked.
@@ -138,6 +142,7 @@ lazy_static! {
       ((UA, UA), 0.7),  ((UA, UC), 0.7),  ((UA, UG), 0.7),  ((UA, UU), 0.7),
     ].iter().map(|&(x, y)| {(x, scale(y))}).collect()
   };
+  pub static ref EXP_ONE_VS_MANY_IL_TM_DELTA_FES: IlTmDeltaFes = {ONE_VS_MANY_IL_TM_DELTA_FES.iter().map(|(x, &y)| {(*x, y.exp())}).collect()};
   pub static ref TWO_VS_3_IL_TM_DELTA_FES: IlTmDeltaFes = {
     [
       // For the base pair "AU" against which another base pair is stacked.
@@ -172,6 +177,7 @@ lazy_static! {
       ((UA, UA), 0.7),  ((UA, UC), 0.7),  ((UA, UG), 0.7),  ((UA, UU), 0.4),
     ].iter().map(|&(x, y)| {(x, scale(y))}).collect()
   };
+  pub static ref EXP_TWO_VS_3_IL_TM_DELTA_FES: IlTmDeltaFes = {TWO_VS_3_IL_TM_DELTA_FES.iter().map(|(x, &y)| {(*x, y.exp())}).collect()};
   pub static ref ML_TM_DELTA_FES: MlTmDeltaFes = {
     [
       // For the base pair "AU" against which another base pair is stacked.
@@ -206,6 +212,7 @@ lazy_static! {
       ((UA, UA), -0.7),  ((UA, UC), -0.6),  ((UA, UG), -0.7),  ((UA, UU), -0.5),
     ].iter().map(|&(x, y)| {(x, scale(y))}).collect()
   };
+  pub static ref EXP_ML_TM_DELTA_FES: MlTmDeltaFes = {ML_TM_DELTA_FES.iter().map(|(x, &y)| {(*x, y.exp())}).collect()};
 }
 
 impl FastaRecord {
@@ -250,6 +257,30 @@ pub fn get_hl_fe(seq: SeqSlice, pp_closing_loop: &PosPair) -> FreeEnergy {
 }
 
 #[inline]
+pub fn get_exp_hl_fe(seq: SeqSlice, pp_closing_loop: &PosPair) -> FreeEnergy {
+  let hl = &seq[pp_closing_loop.0 .. pp_closing_loop.1 + 1];
+  match EXP_SPECIAL_HL_DELTA_FES.get(hl) {
+    Some(&fe) => fe,
+    None => {
+      let hl_len = pp_closing_loop.1 - pp_closing_loop.0 - 1;
+      let bp_closing_hl = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+      let exp_hl_fe = if hl_len == MIN_HL_LEN {
+        EXP_INIT_HL_DELTA_FES[hl_len]
+      } else {
+        let tm = (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]);
+        let exp_init_hl_delta_fe = if hl_len <= MAX_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_LOOP_DELTA_FE {
+          EXP_INIT_HL_DELTA_FES[hl_len]
+        } else {
+          EXP_INIT_HL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE - 1] * (hl_len as FreeEnergy / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE - 1) as FreeEnergy).powf(COEFFICIENT_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE)
+        };
+        exp_init_hl_delta_fe * EXP_HL_TM_DELTA_FES[&(bp_closing_hl, tm)]
+      };
+      exp_hl_fe * if bp_closing_hl == AU || bp_closing_hl == UA || bp_closing_hl == GU || bp_closing_hl == UG {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.}
+    }
+  }
+}
+
+#[inline]
 pub fn get_2_loop_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
   if pp_closing_loop.0 + 1 == accessible_pp.0 && pp_closing_loop.1 - 1 == accessible_pp.1 {
     get_stack_fe(seq, pp_closing_loop, accessible_pp)
@@ -261,10 +292,28 @@ pub fn get_2_loop_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &P
 }
 
 #[inline]
+pub fn get_exp_2_loop_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+  if pp_closing_loop.0 + 1 == accessible_pp.0 && pp_closing_loop.1 - 1 == accessible_pp.1 {
+    get_exp_stack_fe(seq, pp_closing_loop, accessible_pp)
+  } else if pp_closing_loop.0 + 1 == accessible_pp.0 || pp_closing_loop.1 - 1 == accessible_pp.1 {
+    get_exp_bl_fe(seq, pp_closing_loop, accessible_pp)
+  } else {
+    get_exp_il_fe(seq, pp_closing_loop, accessible_pp)
+  }
+}
+
+#[inline]
 fn get_stack_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
   let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
   let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
   STACK_DELTA_FES[&(bp_closing_loop, accessible_bp)]
+}
+
+#[inline]
+fn get_exp_stack_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
+  EXP_STACK_DELTA_FES[&(bp_closing_loop, accessible_bp)]
 }
 
 #[inline]
@@ -278,6 +327,20 @@ fn get_bl_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) 
     let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
     INIT_BL_DELTA_FES[bl_len] + if bp_closing_loop == AU || bp_closing_loop == UA || bp_closing_loop == GU || bp_closing_loop == UG {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.}
     + if accessible_bp == AU || accessible_bp == UA || accessible_bp == GU || accessible_bp == UG {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.}
+  }
+}
+
+#[inline]
+fn get_exp_bl_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+  let bl_len = accessible_pp.0 - pp_closing_loop.0 + pp_closing_loop.1 - accessible_pp.1 - 2;
+  if bl_len == 1 {
+    EXP_INIT_BL_DELTA_FES[bl_len]
+    * get_exp_stack_fe(seq, pp_closing_loop, accessible_pp)
+  } else {
+    let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+    let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
+    EXP_INIT_BL_DELTA_FES[bl_len] * if bp_closing_loop == AU || bp_closing_loop == UA || bp_closing_loop == GU || bp_closing_loop == UG {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.}
+    * if accessible_bp == AU || accessible_bp == UA || accessible_bp == GU || accessible_bp == UG {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.}
   }
 }
 
@@ -318,6 +381,42 @@ fn get_il_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) 
 }
 
 #[inline]
+fn get_exp_il_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
+  let pair_of_nums_of_unpaired_bases = (accessible_pp.0 - pp_closing_loop.0 - 1, pp_closing_loop.1 - accessible_pp.1 - 1);
+  let il_len = pair_of_nums_of_unpaired_bases.0 + pair_of_nums_of_unpaired_bases.1;
+  match pair_of_nums_of_unpaired_bases {
+    (1,1) => {
+      let il = (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]);
+      EXP_ONE_VS_1_IL_DELTA_FES[&(bp_closing_loop, il, accessible_bp)]
+    },
+    (1, 2) => {
+      let il = ((seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]), seq[pp_closing_loop.1 - 2]);
+      EXP_ONE_VS_2_IL_DELTA_FES[&(bp_closing_loop, il, accessible_bp)]
+    },
+    (2, 1) => {
+      let il = ((seq[pp_closing_loop.1 - 1], seq[pp_closing_loop.0 + 2]), seq[pp_closing_loop.0 + 1]);
+      EXP_ONE_VS_2_IL_DELTA_FES[&(invert_bp(&accessible_bp), il, invert_bp(&bp_closing_loop))]
+    },
+    (2, 2) => {
+      let il = (
+        (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]),
+        (seq[pp_closing_loop.0 + 2], seq[pp_closing_loop.1 - 2])
+      );
+      EXP_TWO_VS_2_IL_DELTA_FES[&(bp_closing_loop, il, accessible_bp)]
+    },
+    _ => {
+      EXP_INIT_IL_DELTA_FES[il_len]
+      * EXP_COEFFICIENT_4_NINIO.powi(get_abs_diff(pair_of_nums_of_unpaired_bases.0, pair_of_nums_of_unpaired_bases.1) as i32).min(*EXP_MAX_NINIO)
+      * get_exp_il_tm_delta_fe(seq, pp_closing_loop, accessible_pp, &pair_of_nums_of_unpaired_bases)
+      * if bp_closing_loop == AU || bp_closing_loop == UA || bp_closing_loop == GU || bp_closing_loop == UG {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.}
+      * if accessible_bp == AU || accessible_bp == UA || accessible_bp == GU || accessible_bp == UG {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.}
+    },
+  }
+}
+
+#[inline]
 pub fn invert_bp(bp: &BasePair) -> BasePair {(bp.1, bp.0)}
 
 #[inline]
@@ -346,6 +445,33 @@ fn get_il_tm_delta_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &
     },
     _ => {
       IL_TM_DELTA_FES[&(bp_closing_loop, tm_pair.0)] + IL_TM_DELTA_FES[&(accessible_bp, tm_pair.1)]
+    }
+  }
+}
+
+#[inline]
+fn get_exp_il_tm_delta_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair, pair_of_nums_of_unpaired_bases: &NumPair) -> FreeEnergy {
+  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+  let accessible_bp = (seq[accessible_pp.1], seq[accessible_pp.0]);
+  let tm_pair = (
+    (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]),
+    (seq[accessible_pp.1 + 1], seq[accessible_pp.0 - 1]),
+  );
+  match *pair_of_nums_of_unpaired_bases {
+    (1, _) => {
+      EXP_ONE_VS_MANY_IL_TM_DELTA_FES[&(bp_closing_loop, tm_pair.0)] * EXP_ONE_VS_MANY_IL_TM_DELTA_FES[&(accessible_bp, tm_pair.1)]
+    },
+    (_, 1) => {
+      EXP_ONE_VS_MANY_IL_TM_DELTA_FES[&(bp_closing_loop, tm_pair.0)] * EXP_ONE_VS_MANY_IL_TM_DELTA_FES[&(accessible_bp, tm_pair.1)]
+    },
+    (2, 3) => {
+      EXP_TWO_VS_3_IL_TM_DELTA_FES[&(bp_closing_loop, tm_pair.0)] * EXP_TWO_VS_3_IL_TM_DELTA_FES[&(accessible_bp, tm_pair.1)]
+    },
+    (3, 2) => {
+      EXP_TWO_VS_3_IL_TM_DELTA_FES[&(bp_closing_loop, tm_pair.0)] * EXP_TWO_VS_3_IL_TM_DELTA_FES[&(accessible_bp, tm_pair.1)]
+    },
+    _ => {
+      EXP_IL_TM_DELTA_FES[&(bp_closing_loop, tm_pair.0)] * EXP_IL_TM_DELTA_FES[&(accessible_bp, tm_pair.1)]
     }
   }
 }
