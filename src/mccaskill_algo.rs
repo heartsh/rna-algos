@@ -1,7 +1,7 @@
 use utils::*;
 
 pub struct SsPartFuncMats {
-  pub part_func_flag_mat: PartFuncFlagMat,
+  pub part_func_mat: PartFuncMat,
   pub part_func_mat_4_rightmost_base_pairings: PartFuncMat,
   pub part_func_mat_4_base_pairings: SparsePartFuncMat,
   pub part_func_mat_4_at_least_1_base_pairings_on_mls: PartFuncMat,
@@ -15,13 +15,6 @@ pub struct SsMaxFreeEnergyMats {
 pub type FreeEnergies = Vec<FreeEnergy>;
 pub type FreeEnergyMat = Vec<FreeEnergies>;
 pub type SparseFreeEnergyMat = HashMap<PosPair, FreeEnergy, Hasher>;
-#[derive(Clone)]
-pub struct PartFuncFlag {
-  pub part_func: PartFunc,
-  pub flag: bool,
-}
-pub type PartFuncFlags = Vec<PartFuncFlag>;
-pub type PartFuncFlagMat = Vec<PartFuncFlags>;
 pub type SparsePartFuncMat = HashMap<PosPair, PartFunc, Hasher>;
 pub type SparseProbMat = HashMap<PosPair, Prob, Hasher>;
 
@@ -29,19 +22,10 @@ impl SsPartFuncMats {
   fn new(seq_len: usize) -> SsPartFuncMats {
     let zero_mat = vec![vec![0.; seq_len]; seq_len];
     SsPartFuncMats {
-      part_func_flag_mat: vec![vec![PartFuncFlag::new(); seq_len]; seq_len],
+      part_func_mat: vec![vec![1.; seq_len]; seq_len],
       part_func_mat_4_rightmost_base_pairings: zero_mat.clone(),
       part_func_mat_4_base_pairings: SparsePartFuncMat::default(),
       part_func_mat_4_at_least_1_base_pairings_on_mls: zero_mat,
-    }
-  }
-}
-
-impl PartFuncFlag {
-  fn new() -> PartFuncFlag {
-    PartFuncFlag {
-      part_func: 1.,
-      flag: false,
     }
   }
 }
@@ -138,7 +122,7 @@ pub fn get_max_free_energy(seq: SeqSlice, seq_len: usize) -> FreeEnergy {
         if free_energy_4_rightmost_base_pairing > max_free_energy {max_free_energy = free_energy_4_rightmost_base_pairing};
       }
       ss_max_free_energy_mats.max_free_energy_mat_4_rightmost_base_pairings[i][j] = max_free_energy;
-      max_free_energy = NEG_INFINITY;
+      max_free_energy = 0.;
       for k in i .. j {
         let ss_max_free_energy_4_rightmost_base_pairings = ss_max_free_energy_mats.max_free_energy_mat_4_rightmost_base_pairings[k][j];
         if ss_max_free_energy_4_rightmost_base_pairings.is_finite() {
@@ -203,16 +187,16 @@ pub fn get_ss_part_func_mats(seq: SeqSlice, seq_len: usize, invert_exp_max_free_
         } * if is_au_or_gu(&accessible_bp) {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.});
       }
       ss_part_func_mats.part_func_mat_4_rightmost_base_pairings[i][j] = sum;
-      sum = 1. * invert_exp_max_free_energy;
+      sum = invert_exp_max_free_energy;
       for k in i .. j {
         let ss_part_func_4_rightmost_base_pairings = ss_part_func_mats.part_func_mat_4_rightmost_base_pairings[k][j];
         if ss_part_func_4_rightmost_base_pairings == 0. {
           continue;
         }
-        sum += if i == 0 && k == 0 {1.} else {ss_part_func_mats.part_func_flag_mat[i][k - 1].part_func} / if (i == 0 && k == 0) || !ss_part_func_mats.part_func_flag_mat[i][k - 1].flag {1.} else {invert_exp_max_free_energy} * ss_part_func_4_rightmost_base_pairings;
+        let part_func = if i == 0 && k == 0 {1.} else {ss_part_func_mats.part_func_mat[i][k - 1]};
+        sum += part_func / if part_func == 1. {1.} else {invert_exp_max_free_energy} * ss_part_func_4_rightmost_base_pairings;
       }
-      ss_part_func_mats.part_func_flag_mat[i][j].part_func = sum;
-      ss_part_func_mats.part_func_flag_mat[i][j].flag = sum != 0.;
+      ss_part_func_mats.part_func_mat[i][j] = sum;
       sum = ss_part_func_mats.part_func_mat_4_rightmost_base_pairings[i][j] * (*EXP_COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE);
       for k in i + 1 .. j {
         let ss_part_func_4_rightmost_base_pairings = ss_part_func_mats.part_func_mat_4_rightmost_base_pairings[k][j];
@@ -227,7 +211,7 @@ pub fn get_ss_part_func_mats(seq: SeqSlice, seq_len: usize, invert_exp_max_free_
 
 #[inline]
 fn get_base_pairing_prob_mat(seq: SeqSlice, ss_part_func_mats: &SsPartFuncMats, seq_len: usize, invert_exp_max_free_energy: FreeEnergy) -> SparseProbMat {
-  let ss_part_func = ss_part_func_mats.part_func_flag_mat[0][seq_len - 1].part_func;
+  let ss_part_func = ss_part_func_mats.part_func_mat[0][seq_len - 1];
   let mut bpp_mat = SparseProbMat::default();
   let mut prob_mat_4_mls_1 = vec![vec![0.; seq_len]; seq_len];
   let mut prob_mat_4_mls_2 = prob_mat_4_mls_1.clone();
@@ -253,7 +237,11 @@ fn get_base_pairing_prob_mat(seq: SeqSlice, ss_part_func_mats: &SsPartFuncMats, 
       let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
       if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&accessible_pp) {continue;}
       let ss_part_func_4_base_pairing_1 = ss_part_func_mats.part_func_mat_4_base_pairings[&accessible_pp];
-      let mut sum = if accessible_pp.0 < 1 {1.} else {ss_part_func_mats.part_func_flag_mat[0][accessible_pp.0 - 1].part_func} / if accessible_pp.0 < 1 || !ss_part_func_mats.part_func_flag_mat[0][accessible_pp.0 - 1].flag {1.} else {invert_exp_max_free_energy} * ss_part_func_4_base_pairing_1 * if accessible_pp.1 > seq_len - 2 {1.} else {ss_part_func_mats.part_func_flag_mat[accessible_pp.1 + 1][seq_len - 1].part_func} / if accessible_pp.1 > seq_len - 2 || !ss_part_func_mats.part_func_flag_mat[accessible_pp.1 + 1][seq_len - 1].flag {1.} else {invert_exp_max_free_energy} / ss_part_func * (if i > 0 && j < seq_len - 1 {
+      let part_func_pair = (
+        if accessible_pp.0 < 1 {1.} else {ss_part_func_mats.part_func_mat[0][accessible_pp.0 - 1]},
+        if accessible_pp.1 > seq_len - 2 {1.} else {ss_part_func_mats.part_func_mat[accessible_pp.1 + 1][seq_len - 1]},
+      );
+      let mut sum = part_func_pair.0 / if part_func_pair.0 == 1. {1.} else {invert_exp_max_free_energy} * ss_part_func_4_base_pairing_1 * part_func_pair.1 / if part_func_pair.1 == 1. {1.} else {invert_exp_max_free_energy} / ss_part_func * (if i > 0 && j < seq_len - 1 {
         EXP_ML_TM_DELTA_FES[&(accessible_bp, (seq[i - 1], seq[j + 1]))]
       } else if i > 0 {
         EXP_FIVE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[i - 1])]
