@@ -9,7 +9,7 @@ pub use std::str::from_utf8_unchecked;
 pub use getopts::Options;
 pub use itertools::multizip;
 
-pub type Pos = usize;
+pub type Pos = u16;
 pub type PosPair = (Pos, Pos);
 pub type Num = usize;
 type NumPair = (Num, Num);
@@ -35,7 +35,7 @@ lazy_static! {
   pub static ref EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE: FreeEnergy = HELIX_AU_OR_GU_END_PENALTY_DELTA_FE.exp();
   pub static ref EXP_MAX_NINIO: FreeEnergy = MAX_NINIO.exp();
   pub static ref EXP_COEFFICIENT_4_NINIO: FreeEnergy = COEFFICIENT_4_NINIO.exp();
-  static ref CANONICAL_BPS: HashMap<BasePair, bool> = {
+  static ref CANONICAL_BPS: FxHashMap<BasePair, bool> = {
     [(AU, true), (CG, true), (GC, true), (GU, true), (UA, true), (UG, true)].iter().cloned().collect()
   };
   pub static ref HL_TM_DELTA_FES: HlTmDeltaFes = {
@@ -224,7 +224,6 @@ impl FastaRecord {
   }
 }
 
-#[inline]
 pub fn is_canonical(bp: &BasePair) -> bool {
   match CANONICAL_BPS.get(bp) {
     Some(_) => true,
@@ -232,56 +231,70 @@ pub fn is_canonical(bp: &BasePair) -> bool {
   }
 }
 
-#[inline]
-pub fn get_hl_fe(seq: SeqSlice, pp_closing_loop: &PosPair) -> FreeEnergy {
+pub fn get_hl_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize)) -> FreeEnergy {
   let hl = &seq[pp_closing_loop.0 .. pp_closing_loop.1 + 1];
-  match SPECIAL_HL_DELTA_FES.get(hl) {
-    Some(&fe) => fe,
-    None => {
-      let hl_len = pp_closing_loop.1 - pp_closing_loop.0 - 1;
-      let bp_closing_hl = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
-      let hl_fe = if hl_len == MIN_HL_LEN {
+  let special_hl_fe = get_special_hl_fe(hl);
+  if special_hl_fe > NEG_INFINITY {
+    special_hl_fe
+  } else {
+    let hl_len = pp_closing_loop.1 - pp_closing_loop.0 - 1;
+    let bp_closing_hl = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+    let hl_fe = if hl_len == MIN_HL_LEN {
+      INIT_HL_DELTA_FES[hl_len]
+    } else {
+      let tm = (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]);
+      let init_hl_delta_fe = if hl_len <= MAX_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_LOOP_DELTA_FE {
         INIT_HL_DELTA_FES[hl_len]
       } else {
-        let tm = (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]);
-        let init_hl_delta_fe = if hl_len <= MAX_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_LOOP_DELTA_FE {
-          INIT_HL_DELTA_FES[hl_len]
-        } else {
-          INIT_HL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE - 1] + COEFFICIENT_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE * (hl_len as FreeEnergy / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE - 1) as FreeEnergy).ln()
-        };
-        init_hl_delta_fe + HL_TM_DELTA_FES[&(bp_closing_hl, tm)]
+        INIT_HL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE - 1] + COEFFICIENT_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE * (hl_len as FreeEnergy / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE - 1) as FreeEnergy).ln()
       };
-      hl_fe + if bp_closing_hl == AU || bp_closing_hl == UA || bp_closing_hl == GU || bp_closing_hl == UG {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.}
-    }
+      init_hl_delta_fe + HL_TM_DELTA_FES[&(bp_closing_hl, tm)]
+    };
+    hl_fe + if bp_closing_hl == AU || bp_closing_hl == UA || bp_closing_hl == GU || bp_closing_hl == UG {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.}
   }
 }
 
-#[inline]
-pub fn get_exp_hl_fe(seq: SeqSlice, pp_closing_loop: &PosPair) -> FreeEnergy {
+pub fn get_special_hl_fe(seq: SeqSlice) -> FreeEnergy {
+  for special_hl_delta_fe in SPECIAL_HL_DELTA_FES.iter() {
+    if special_hl_delta_fe.0 == seq {
+      return special_hl_delta_fe.1;
+    }
+  }
+  NEG_INFINITY
+}
+pub fn get_exp_special_hl_fe(seq: SeqSlice) -> FreeEnergy {
+  for exp_special_hl_delta_fe in EXP_SPECIAL_HL_DELTA_FES.iter() {
+    if exp_special_hl_delta_fe.0 == seq {
+      return exp_special_hl_delta_fe.1;
+    }
+  }
+  0. 
+}
+
+pub fn get_exp_hl_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize)) -> FreeEnergy {
   let hl = &seq[pp_closing_loop.0 .. pp_closing_loop.1 + 1];
-  match EXP_SPECIAL_HL_DELTA_FES.get(hl) {
-    Some(&fe) => fe,
-    None => {
-      let hl_len = pp_closing_loop.1 - pp_closing_loop.0 - 1;
-      let bp_closing_hl = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
-      let exp_hl_fe = if hl_len == MIN_HL_LEN {
+  let exp_special_hl_fe = get_exp_special_hl_fe(hl);
+  if exp_special_hl_fe > 0. {
+    exp_special_hl_fe
+  } else {
+    let hl_len = pp_closing_loop.1 - pp_closing_loop.0 - 1;
+    let bp_closing_hl = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+    let exp_hl_fe = if hl_len == MIN_HL_LEN {
+      EXP_INIT_HL_DELTA_FES[hl_len]
+    } else {
+      let tm = (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]);
+      let exp_init_hl_delta_fe = if hl_len <= MAX_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_LOOP_DELTA_FE {
         EXP_INIT_HL_DELTA_FES[hl_len]
       } else {
-        let tm = (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]);
-        let exp_init_hl_delta_fe = if hl_len <= MAX_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_LOOP_DELTA_FE {
-          EXP_INIT_HL_DELTA_FES[hl_len]
-        } else {
-          EXP_INIT_HL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE - 1] * (hl_len as FreeEnergy / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE - 1) as FreeEnergy).powf(COEFFICIENT_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE)
-        };
-        exp_init_hl_delta_fe * EXP_HL_TM_DELTA_FES[&(bp_closing_hl, tm)]
+        EXP_INIT_HL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE - 1] * (hl_len as FreeEnergy / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE - 1) as FreeEnergy).powf(COEFFICIENT_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE)
       };
-      exp_hl_fe * if bp_closing_hl == AU || bp_closing_hl == UA || bp_closing_hl == GU || bp_closing_hl == UG {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.}
-    }
+      exp_init_hl_delta_fe * EXP_HL_TM_DELTA_FES[&(bp_closing_hl, tm)]
+    };
+    exp_hl_fe * if bp_closing_hl == AU || bp_closing_hl == UA || bp_closing_hl == GU || bp_closing_hl == UG {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.}
   }
 }
 
-#[inline]
-pub fn get_2_loop_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+pub fn get_2_loop_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
   if pp_closing_loop.0 + 1 == accessible_pp.0 && pp_closing_loop.1 - 1 == accessible_pp.1 {
     get_stack_fe(seq, pp_closing_loop, accessible_pp)
   } else if pp_closing_loop.0 + 1 == accessible_pp.0 || pp_closing_loop.1 - 1 == accessible_pp.1 {
@@ -291,8 +304,7 @@ pub fn get_2_loop_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &P
   }
 }
 
-#[inline]
-pub fn get_exp_2_loop_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+pub fn get_exp_2_loop_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
   if pp_closing_loop.0 + 1 == accessible_pp.0 && pp_closing_loop.1 - 1 == accessible_pp.1 {
     get_exp_stack_fe(seq, pp_closing_loop, accessible_pp)
   } else if pp_closing_loop.0 + 1 == accessible_pp.0 || pp_closing_loop.1 - 1 == accessible_pp.1 {
@@ -302,22 +314,19 @@ pub fn get_exp_2_loop_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp
   }
 }
 
-#[inline]
-fn get_stack_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+fn get_stack_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
   let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
   let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
   STACK_DELTA_FES[&(bp_closing_loop, accessible_bp)]
 }
 
-#[inline]
-fn get_exp_stack_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+fn get_exp_stack_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
   let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
   let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
   EXP_STACK_DELTA_FES[&(bp_closing_loop, accessible_bp)]
 }
 
-#[inline]
-fn get_bl_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+fn get_bl_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
   let bl_len = accessible_pp.0 - pp_closing_loop.0 + pp_closing_loop.1 - accessible_pp.1 - 2;
   if bl_len == 1 {
     INIT_BL_DELTA_FES[bl_len]
@@ -330,8 +339,7 @@ fn get_bl_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) 
   }
 }
 
-#[inline]
-fn get_exp_bl_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+fn get_exp_bl_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
   let bl_len = accessible_pp.0 - pp_closing_loop.0 + pp_closing_loop.1 - accessible_pp.1 - 2;
   if bl_len == 1 {
     EXP_INIT_BL_DELTA_FES[bl_len]
@@ -344,8 +352,7 @@ fn get_exp_bl_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPa
   }
 }
 
-#[inline]
-fn get_il_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+fn get_il_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
   let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
   let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
   let pair_of_nums_of_unpaired_bases = (accessible_pp.0 - pp_closing_loop.0 - 1, pp_closing_loop.1 - accessible_pp.1 - 1);
@@ -380,8 +387,7 @@ fn get_il_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) 
   }
 }
 
-#[inline]
-fn get_exp_il_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair) -> FreeEnergy {
+fn get_exp_il_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
   let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
   let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
   let pair_of_nums_of_unpaired_bases = (accessible_pp.0 - pp_closing_loop.0 - 1, pp_closing_loop.1 - accessible_pp.1 - 1);
@@ -416,14 +422,11 @@ fn get_exp_il_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPa
   }
 }
 
-#[inline]
 pub fn invert_bp(bp: &BasePair) -> BasePair {(bp.1, bp.0)}
 
-#[inline]
 pub fn get_abs_diff(x: usize, y: usize) -> usize {max(x, y) - min(x, y)}
 
-#[inline]
-fn get_il_tm_delta_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair, pair_of_nums_of_unpaired_bases: &NumPair) -> FreeEnergy {
+fn get_il_tm_delta_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize), pair_of_nums_of_unpaired_bases: &NumPair) -> FreeEnergy {
   let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
   let accessible_bp = (seq[accessible_pp.1], seq[accessible_pp.0]);
   let tm_pair = (
@@ -449,8 +452,7 @@ fn get_il_tm_delta_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &
   }
 }
 
-#[inline]
-fn get_exp_il_tm_delta_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_pp: &PosPair, pair_of_nums_of_unpaired_bases: &NumPair) -> FreeEnergy {
+fn get_exp_il_tm_delta_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize), pair_of_nums_of_unpaired_bases: &NumPair) -> FreeEnergy {
   let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
   let accessible_bp = (seq[accessible_pp.1], seq[accessible_pp.0]);
   let tm_pair = (
@@ -476,7 +478,6 @@ fn get_exp_il_tm_delta_fe(seq: SeqSlice, pp_closing_loop: &PosPair, accessible_p
   }
 }
 
-#[inline]
 pub fn is_rna_base(base: Base) -> bool {
   match base {
     A => true,
@@ -487,13 +488,11 @@ pub fn is_rna_base(base: Base) -> bool {
   }
 }
 
-#[inline]
 pub fn print_program_usage(program_name: &str, opts: &Options) {
   let program_usage = format!("The usage of this program: {} [options]", program_name);
   print!("{}", opts.usage(&program_usage));
 }
 
-#[inline]
 pub fn is_au_or_gu(bp: &BasePair) -> bool {
   *bp == AU || *bp == UA || *bp == GU || *bp == UG
 }
