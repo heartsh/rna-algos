@@ -33,20 +33,20 @@ fn main() {
     Ok(opt) => {opt}
     Err(failure) => {print_program_usage(&program_name, &opts); panic!(failure.to_string())}
   };
-  let input_file_path = opts.opt_str("i").expect("Failed to get the path to an input FASTA file containing RNA sequences from command arguments.");
+  let input_file_path = opts.opt_str("i").unwrap();
   let input_file_path = Path::new(&input_file_path);
-  let output_dir_path = opts.opt_str("o").expect("Failed to get the path to an output directory from command arguments.");
+  let output_dir_path = opts.opt_str("o").unwrap();
   let output_dir_path = Path::new(&output_dir_path);
   let num_of_threads = if opts.opt_present("t") {
-    opts.opt_str("t").expect("Failed to get the number of threads in multithreading from command arguments.").parse().expect("Failed to parse the number of threads in multithreading.")
+    opts.opt_str("t").unwrap().parse().unwrap()
   } else {
     num_cpus::get() as NumOfThreads
   };
-  let fasta_file_reader = Reader::from_file(Path::new(&input_file_path)).expect("Failed to set a FASTA file reader.");
+  let fasta_file_reader = Reader::from_file(Path::new(&input_file_path)).unwrap();
   let mut fasta_records = FastaRecords::new();
   for fasta_record in fasta_file_reader.records() {
-    let fasta_record = fasta_record.expect("Failed to read a FASTA record.");
-    let seq = unsafe {from_utf8_unchecked(fasta_record.seq()).to_uppercase().as_bytes().iter().filter(|&&base| {is_rna_base(base)}).map(|&base| {base}).collect()};
+    let fasta_record = fasta_record.unwrap();
+    let seq = convert(fasta_record.seq());
     fasta_records.push(FastaRecord::new(String::from(fasta_record.id()), seq));
   }
   let num_of_fasta_records = fasta_records.len();
@@ -69,7 +69,7 @@ fn main() {
   }
   let mut buf_4_writer_2_bpp_mat_file = format!("; The version {} of the McCaskill program.\n; The path to the input file in order to compute the base-pairing Probability matrices on secondary structure in this file = \"{}\".\n; The values of the parameters used in order to compute the matrices are as follows.\n; \"num_of_threads\" = {}.", VERSION, input_file_path.display(), num_of_threads) + "\n; Each row beginning with \">\" is with the ID of an RNA sequence and (the scaled inverse of) the minimum free energy of the sequence on secondary structure. The next row to the row is with the base-pairing probability matrix on secondary structure of the sequence.";
   let bpp_mat_file_path = output_dir_path.join(BPP_MAT_FILE_NAME);
-  let mut writer_2_bpp_mat_file = BufWriter::new(File::create(bpp_mat_file_path).expect("Failed to create an output file."));
+  let mut writer_2_bpp_mat_file = BufWriter::new(File::create(bpp_mat_file_path).unwrap());
   for (rna_id, bpp_mat) in bpp_mats.iter().enumerate() {
     let mut buf_4_rna_id = format!("\n\n>{}\n", rna_id);
     for (&(i, j), &bpp) in bpp_mat.iter() {
@@ -80,7 +80,7 @@ fn main() {
   let _ = writer_2_bpp_mat_file.write_all(buf_4_writer_2_bpp_mat_file.as_bytes());
   let mut buf_4_writer_2_upp_mat_file = format!("; The version {} of the McCaskill program.\n; The path to the input file in order to compute the UnPairing probability matrices on secondary structure in this file = \"{}\".\n; The values of the parameters used in order to compute the matrices are as follows.\n; \"num_of_threads\" = {}.", VERSION, input_file_path.display(), num_of_threads) + "\n; Each row beginning with \">\" is with the ID of an RNA sequence. The next row to the row is with the unpairing probability matrix on secondary structure of the sequence on secondary structure.";
   let upp_mat_file_path = output_dir_path.join(UPP_MAT_FILE_NAME);
-  let mut writer_2_upp_mat_file = BufWriter::new(File::create(upp_mat_file_path).expect("Failed to create an output file."));
+  let mut writer_2_upp_mat_file = BufWriter::new(File::create(upp_mat_file_path).unwrap());
   for (rna_id, upp_mat) in upp_mats.iter().enumerate() {
     let mut buf_4_rna_id = format!("\n\n>{}\n", rna_id);
     for (i, &upp) in upp_mat.iter().enumerate() {

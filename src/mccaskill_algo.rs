@@ -72,6 +72,7 @@ pub fn get_bpp_and_unpair_prob_mats(seq: SeqSlice) -> (SparseProbMat, Probs, Fre
       if !bpp_mat.contains_key(&pp) {continue;}
       sum += bpp_mat[&pp];
     }
+    assert!(0. <= sum && sum <= 1.);
     unpair_prob_mat[long_i] = 1. - sum;
   }
   (bpp_mat, unpair_prob_mat, max_free_energy)
@@ -103,8 +104,10 @@ pub fn get_max_free_energy(seq: SeqSlice, seq_len: usize) -> FreeEnergy {
             if twoloop_free_energy > max_free_energy {max_free_energy = twoloop_free_energy};
           }
         }
+        let invert_bp_closing_loop = invert_bp(&bp_closing_loop);
+        let invert_stacking_bp = invert_bp(&(seq[long_i + 1], seq[long_j - 1]));
         for k in long_i + 1 .. long_j {
-          let ml_free_energy = ss_max_free_energy_mats.max_free_energy_mat_4_at_least_1_base_pairings_on_mls[long_i + 1][k - 1] + ss_max_free_energy_mats.max_free_energy_mat_4_rightmost_base_pairings[k][long_j - 1] + CONST_4_INIT_ML_DELTA_FE + COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE + ML_TM_DELTA_FES[&(invert_bp(&bp_closing_loop), invert_bp(&(seq[long_i + 1], seq[long_j - 1])))] + if is_au_or_gu(&bp_closing_loop) {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.};
+          let ml_free_energy = ss_max_free_energy_mats.max_free_energy_mat_4_at_least_1_base_pairings_on_mls[long_i + 1][k - 1] + ss_max_free_energy_mats.max_free_energy_mat_4_rightmost_base_pairings[k][long_j - 1] + CONST_4_INIT_ML_DELTA_FE + COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE + ML_TM_DELTA_FES[invert_bp_closing_loop.0][invert_bp_closing_loop.1][invert_stacking_bp.0][invert_stacking_bp.1] + if is_au_or_gu(&bp_closing_loop) {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.};
           if ml_free_energy > max_free_energy {max_free_energy = ml_free_energy};
         }
         ss_max_free_energy_mats.max_free_energy_mat_4_base_pairings.insert(pp_closing_loop, max_free_energy);
@@ -117,11 +120,11 @@ pub fn get_max_free_energy(seq: SeqSlice, seq_len: usize) -> FreeEnergy {
         if !ss_max_free_energy_mats.max_free_energy_mat_4_base_pairings.contains_key(&accessible_pp) {continue;}
         let ss_max_free_energy_4_bp = ss_max_free_energy_mats.max_free_energy_mat_4_base_pairings[&accessible_pp];
         let free_energy_4_rightmost_base_pairing = ss_max_free_energy_4_bp + (if i > 0 && k < seq_len - 1 {
-          ML_TM_DELTA_FES[&(accessible_bp, (seq[long_i - 1], seq[long_k + 1]))]
+          ML_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]][seq[long_k + 1]]
         } else if i > 0 {
-          FIVE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[long_i - 1])]
+          FIVE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]]
         } else if k < seq_len - 1 {
-          THREE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[long_k + 1])]
+          THREE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_k + 1]]
         } else {
           0.
         } + if is_au_or_gu(&accessible_bp) {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.});
@@ -176,8 +179,11 @@ pub fn get_ss_part_func_mats(seq: SeqSlice, seq_len: usize, invert_exp_max_free_
             sum += ss_part_func_4_base_pairing * get_exp_2_loop_fe(seq, &long_pp_closing_loop, &long_accessible_pp);
           }
         }
+        let invert_bp_closing_loop = invert_bp(&bp_closing_loop);
+        let invert_stacking_bp = invert_bp(&(seq[long_i + 1], seq[long_j - 1]));
+        let exp_ml_tm_delta_fe = EXP_ML_TM_DELTA_FES[invert_bp_closing_loop.0][invert_bp_closing_loop.1][invert_stacking_bp.0][invert_stacking_bp.1];
         for k in long_i + 1 .. long_j {
-          sum += ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_i + 1][k - 1] / invert_exp_max_free_energy * ss_part_func_mats.part_func_mat_4_rightmost_base_pairings[k][long_j - 1] * (*EXP_CONST_4_INIT_ML_DELTA_FE) * (*EXP_COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE) * EXP_ML_TM_DELTA_FES[&(invert_bp(&bp_closing_loop), invert_bp(&(seq[long_i + 1], seq[long_j - 1])))] * if is_au_or_gu(&bp_closing_loop) {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.};
+          sum += ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_i + 1][k - 1] * ss_part_func_mats.part_func_mat_4_rightmost_base_pairings[k][long_j - 1] / invert_exp_max_free_energy * (*EXP_CONST_4_INIT_ML_DELTA_FE) * (*EXP_COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE) * exp_ml_tm_delta_fe * if is_au_or_gu(&bp_closing_loop) {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.};
         }
         ss_part_func_mats.part_func_mat_4_base_pairings.insert(pp_closing_loop, sum);
       }
@@ -189,11 +195,11 @@ pub fn get_ss_part_func_mats(seq: SeqSlice, seq_len: usize, invert_exp_max_free_
         if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&accessible_pp) {continue;}
         let ss_part_func_4_bp = ss_part_func_mats.part_func_mat_4_base_pairings[&accessible_pp];
         sum += ss_part_func_4_bp * (if i > 0 && k < seq_len - 1 {
-          EXP_ML_TM_DELTA_FES[&(accessible_bp, (seq[long_i - 1], seq[long_k + 1]))]
+          EXP_ML_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]][seq[long_k + 1]]
         } else if i > 0 {
-          EXP_FIVE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[long_i - 1])]
+          EXP_FIVE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]]
         } else if k < seq_len - 1 {
-          EXP_THREE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[long_k + 1])]
+          EXP_THREE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_k + 1]]
         } else {
           1.
         } * if is_au_or_gu(&accessible_bp) {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.});
@@ -206,14 +212,14 @@ pub fn get_ss_part_func_mats(seq: SeqSlice, seq_len: usize, invert_exp_max_free_
           continue;
         }
         let part_func = if i == 0 && k == 0 {1.} else {ss_part_func_mats.part_func_mat[long_i][k - 1]};
-        sum += part_func / if part_func == 1. {1.} else {invert_exp_max_free_energy} * ss_part_func_4_rightmost_base_pairings;
+        sum += part_func * ss_part_func_4_rightmost_base_pairings / if part_func == 1. {1.} else {invert_exp_max_free_energy};
       }
       ss_part_func_mats.part_func_mat[long_i][long_j] = sum;
       sum = ss_part_func_mats.part_func_mat_4_rightmost_base_pairings[long_i][long_j] * (*EXP_COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE);
       for k in long_i + 1 .. long_j {
         let ss_part_func_4_rightmost_base_pairings = ss_part_func_mats.part_func_mat_4_rightmost_base_pairings[k][long_j];
         sum += ss_part_func_4_rightmost_base_pairings * (*EXP_COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE);
-        sum += ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_i][k - 1] / invert_exp_max_free_energy * ss_part_func_4_rightmost_base_pairings * (*EXP_COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE);
+        sum += ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_i][k - 1] * ss_part_func_4_rightmost_base_pairings / invert_exp_max_free_energy * (*EXP_COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE);
       }
       ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_i][long_j] = sum;
     }
@@ -240,9 +246,11 @@ fn get_base_pairing_prob_mat(seq: SeqSlice, ss_part_func_mats: &SsPartFuncMats, 
         let ss_part_func_4_base_pairing = ss_part_func_mats.part_func_mat_4_base_pairings[&pp_closing_loop];
         let bpp = bpp_mat[&pp_closing_loop];
         let bp_closing_loop = (seq[long_i], seq[long_k]);
-        let exp_ml_tm_delta_fe = EXP_ML_TM_DELTA_FES[&(invert_bp(&bp_closing_loop), invert_bp(&(seq[long_i + 1], seq[long_k - 1])))];
+        let invert_bp_closing_loop = invert_bp(&bp_closing_loop);
+        let invert_stacking_bp = invert_bp(&(seq[long_i + 1], seq[long_k - 1]));
+        let exp_ml_tm_delta_fe = EXP_ML_TM_DELTA_FES[invert_bp_closing_loop.0][invert_bp_closing_loop.1][invert_stacking_bp.0][invert_stacking_bp.1];
         let coefficient = bpp * exp_ml_tm_delta_fe * if is_au_or_gu(&bp_closing_loop) {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.} / ss_part_func_4_base_pairing;
-        sum_1 += coefficient * ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_j + 1][long_k - 1] / invert_exp_max_free_energy;
+        sum_1 += coefficient * ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_j + 1][long_k - 1];
         sum_2 += coefficient;
       }
       prob_mat_4_mls_1[long_i][long_j] = sum_1;
@@ -256,12 +264,12 @@ fn get_base_pairing_prob_mat(seq: SeqSlice, ss_part_func_mats: &SsPartFuncMats, 
         if accessible_pp.0 < 1 {1.} else {ss_part_func_mats.part_func_mat[0][long_i - 1]},
         if accessible_pp.1 > short_seq_len - 2 {1.} else {ss_part_func_mats.part_func_mat[long_j + 1][seq_len - 1]},
       );
-      let mut sum = part_func_pair.0 / if part_func_pair.0 == 1. {1.} else {invert_exp_max_free_energy} * ss_part_func_4_base_pairing_1 * part_func_pair.1 / if part_func_pair.1 == 1. {1.} else {invert_exp_max_free_energy} / ss_part_func * (if i > 0 && j < short_seq_len - 1 {
-        EXP_ML_TM_DELTA_FES[&(accessible_bp, (seq[long_i - 1], seq[long_j + 1]))]
+      let mut sum = part_func_pair.0 * ss_part_func_4_base_pairing_1 / if part_func_pair.0 == 1. {1.} else {invert_exp_max_free_energy} * part_func_pair.1 / if part_func_pair.1 == 1. {1.} else {invert_exp_max_free_energy} / ss_part_func * (if i > 0 && j < short_seq_len - 1 {
+        EXP_ML_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]][seq[long_j + 1]]
       } else if i > 0 {
-        EXP_FIVE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[long_i - 1])]
+        EXP_FIVE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]]
       } else if j < short_seq_len - 1 {
-        EXP_THREE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[long_j + 1])]
+        EXP_THREE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_j + 1]]
       } else {
         1.
       } * if is_au_or_gu(&accessible_bp) {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.});
@@ -278,21 +286,22 @@ fn get_base_pairing_prob_mat(seq: SeqSlice, ss_part_func_mats: &SsPartFuncMats, 
         }
       }
       let coefficient = ss_part_func_4_base_pairing_1 * (*EXP_CONST_4_INIT_ML_DELTA_FE) * (*EXP_COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE) * if i > 0 && j < short_seq_len - 1 {
-        EXP_ML_TM_DELTA_FES[&(accessible_bp, (seq[long_i - 1], seq[long_j + 1]))]
+        EXP_ML_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]][seq[long_j + 1]]
       } else if i > 0 {
-        EXP_FIVE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[long_i - 1])]
+        EXP_FIVE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]]
       } else if j < short_seq_len - 1 {
-        EXP_THREE_PRIME_DE_DELTA_FES[&(accessible_bp, seq[long_j + 1])]
+        EXP_THREE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_j + 1]]
       } else {
         1.
       } * if is_au_or_gu(&accessible_bp) {*EXP_HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {1.};
       for k in 0 .. long_i {
-        let ss_part_func_4_at_least_1_base_pairings_on_mls = ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[k + 1][long_i - 1] / invert_exp_max_free_energy;
-        sum += coefficient * prob_mat_4_mls_2[k][long_j] * ss_part_func_4_at_least_1_base_pairings_on_mls;
+        let ss_part_func_4_at_least_1_base_pairings_on_mls = ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[k + 1][long_i - 1];
+        sum += coefficient * prob_mat_4_mls_2[k][long_j] * ss_part_func_4_at_least_1_base_pairings_on_mls / invert_exp_max_free_energy;
         let prob_4_mls = prob_mat_4_mls_1[k][long_j];
-        sum += coefficient * prob_4_mls;
-        sum += coefficient * prob_4_mls * ss_part_func_4_at_least_1_base_pairings_on_mls;
+        sum += coefficient * prob_4_mls / invert_exp_max_free_energy;
+        sum += coefficient * prob_4_mls / invert_exp_max_free_energy * ss_part_func_4_at_least_1_base_pairings_on_mls / invert_exp_max_free_energy;
       }
+      assert!(0. <= sum && sum <= 1.);
       bpp_mat.insert(accessible_pp, sum);
     }
   }
