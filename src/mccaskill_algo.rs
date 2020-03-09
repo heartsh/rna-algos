@@ -130,7 +130,6 @@ pub fn get_max_free_energy(seq: SeqSlice, seq_len: usize, ss_free_energy_mats: &
             let long_accessible_pp = (long_k, long_l);
             if !ss_max_free_energy_mats.max_free_energy_mat_4_base_pairings.contains_key(&accessible_pp) {continue;}
             let ss_max_free_energy_4_base_pairing = ss_max_free_energy_mats.max_free_energy_mat_4_base_pairings[&accessible_pp];
-            // let twoloop_free_energy = ss_max_free_energy_4_base_pairing + get_2_loop_fe(seq, &long_pp_closing_loop, &long_accessible_pp);
             let twoloop_free_energy = get_2_loop_fe(seq, &long_pp_closing_loop, &long_accessible_pp);
             ss_free_energy_mats.twoloop_fe_4d_mat.insert((i, j, k, l), twoloop_free_energy);
             let twoloop_free_energy = ss_max_free_energy_4_base_pairing + twoloop_free_energy;
