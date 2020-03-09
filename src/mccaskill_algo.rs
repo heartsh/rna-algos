@@ -17,6 +17,15 @@ pub type FreeEnergyMat = Vec<FreeEnergies>;
 pub type SparseFreeEnergyMat = FxHashMap<PosPair, FreeEnergy>;
 pub type SparsePartFuncMat = FxHashMap<PosPair, PartFunc>;
 pub type SparseProbMat = FxHashMap<PosPair, Prob>;
+#[derive(Clone)]
+pub struct SsFreeEnergyMats {
+  pub hl_fe_mat: SparseFreeEnergyMat,
+  pub exp_hl_fe_mat: SparseFreeEnergyMat,
+  pub twoloop_fe_4d_mat: FreeEnergy4dMat,
+  pub exp_2loop_fe_4d_mat: FreeEnergy4dMat,
+}
+pub type PosQuadruple = (Pos, Pos, Pos, Pos);
+pub type FreeEnergy4dMat = FxHashMap<PosQuadruple, FreeEnergy>;
 
 impl SsPartFuncMats {
   fn new(seq_len: usize) -> SsPartFuncMats {
@@ -42,6 +51,25 @@ impl SsMaxFreeEnergyMats {
   }
 }
 
+impl SsFreeEnergyMats {
+  pub fn new() -> SsFreeEnergyMats {
+    let free_energy_mat = SparseFreeEnergyMat::default();
+    let free_energy_4d_mat = FreeEnergy4dMat::default();
+    SsFreeEnergyMats {
+      hl_fe_mat: free_energy_mat.clone(),
+      exp_hl_fe_mat: free_energy_mat,
+      twoloop_fe_4d_mat: free_energy_4d_mat.clone(),
+      exp_2loop_fe_4d_mat: free_energy_4d_mat,
+    }
+  }
+  pub fn sparsify(&mut self, bpp_mat: &SparseProbMat, min_bpp: Prob) {
+    self.hl_fe_mat = self.hl_fe_mat.iter().filter(|(pos_pair, _)| {bpp_mat[pos_pair] >= min_bpp}).map(|(&(i, j), &free_energy)| {((i + 1, j + 1), free_energy)}).collect();
+    self.exp_hl_fe_mat = self.exp_hl_fe_mat.iter().filter(|(pos_pair, _)| {bpp_mat[pos_pair] >= min_bpp}).map(|(&(i, j), &free_energy)| {((i + 1, j + 1), free_energy)}).collect();
+    self.twoloop_fe_4d_mat = self.twoloop_fe_4d_mat.iter().filter(|(&(i, j, k, l), _)| {bpp_mat[&(i, j)] >= min_bpp && bpp_mat[&(k, l)] >= min_bpp}).map(|(&(i, j, k, l), &free_energy)| {((i + 1, j + 1, k + 1, l + 1), free_energy)}).collect();
+    self.exp_2loop_fe_4d_mat = self.exp_2loop_fe_4d_mat.iter().filter(|(&(i, j, k, l), _)| {bpp_mat[&(i, j)] >= min_bpp && bpp_mat[&(k, l)] >= min_bpp}).map(|(&(i, j, k, l), &free_energy)| {((i + 1, j + 1, k + 1, l + 1), free_energy)}).collect();
+  }
+}
+
 pub const CONST_4_INIT_ML_DELTA_FE: FreeEnergy = - INVERSE_TEMPERATURE * 9.3;
 pub const COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE: FreeEnergy = - INVERSE_TEMPERATURE * (-0.9);
 lazy_static! {
@@ -49,18 +77,19 @@ lazy_static! {
   pub static ref EXP_COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE: FreeEnergy = COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE.exp();
 }
 
-pub fn mccaskill_algo(seq: SeqSlice) -> (SparseProbMat, FreeEnergy) {
+pub fn mccaskill_algo(seq: SeqSlice) -> (SparseProbMat, FreeEnergy, SsFreeEnergyMats) {
   let seq_len = seq.len();
-  let max_free_energy = get_max_free_energy(seq, seq_len);
+  let mut ss_free_energy_mats = SsFreeEnergyMats::new();
+  let max_free_energy = get_max_free_energy(seq, seq_len, &mut ss_free_energy_mats);
   let invert_exp_max_free_energy = 1. / max_free_energy.exp();
-  let ss_part_func_mats = get_ss_part_func_mats(seq, seq_len, invert_exp_max_free_energy);
+  let ss_part_func_mats = get_ss_part_func_mats(seq, seq_len, invert_exp_max_free_energy, &mut ss_free_energy_mats);
   let bpp_mat = get_base_pairing_prob_mat(seq, &ss_part_func_mats, seq_len, invert_exp_max_free_energy);
-  (bpp_mat, max_free_energy)
+  (bpp_mat, max_free_energy, ss_free_energy_mats)
 }
 
-pub fn get_bpp_and_unpair_prob_mats(seq: SeqSlice) -> (SparseProbMat, Probs, FreeEnergy) {
+pub fn get_bpp_and_unpair_prob_mats(seq: SeqSlice) -> (SparseProbMat, Probs, FreeEnergy, SsFreeEnergyMats) {
   let seq_len = seq.len();
-  let (bpp_mat, max_free_energy) = mccaskill_algo(&seq[..]);
+  let (bpp_mat, max_free_energy, ss_free_energy_mats) = mccaskill_algo(&seq[..]);
   let mut unpair_prob_mat = vec![1.; seq_len];
   let seq_len = seq_len as Pos;
   for i in 0 .. seq_len {
@@ -75,10 +104,10 @@ pub fn get_bpp_and_unpair_prob_mats(seq: SeqSlice) -> (SparseProbMat, Probs, Fre
     assert!(0. <= sum && sum <= 1.);
     unpair_prob_mat[long_i] = 1. - sum;
   }
-  (bpp_mat, unpair_prob_mat, max_free_energy)
+  (bpp_mat, unpair_prob_mat, max_free_energy, ss_free_energy_mats)
 }
 
-pub fn get_max_free_energy(seq: SeqSlice, seq_len: usize) -> FreeEnergy {
+pub fn get_max_free_energy(seq: SeqSlice, seq_len: usize, ss_free_energy_mats: &mut SsFreeEnergyMats) -> FreeEnergy {
   let mut ss_max_free_energy_mats = SsMaxFreeEnergyMats::new(seq_len);
   let seq_len = seq_len as Pos;
   for sub_seq_len in MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL as Pos .. seq_len + 1 {
@@ -91,6 +120,7 @@ pub fn get_max_free_energy(seq: SeqSlice, seq_len: usize) -> FreeEnergy {
       let mut max_free_energy;
       if pp_closing_loop.1 - pp_closing_loop.0 + 1 >= MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL as Pos && is_canonical(&bp_closing_loop) {
         max_free_energy = get_hl_fe(seq, &long_pp_closing_loop);
+        ss_free_energy_mats.hl_fe_mat.insert(pp_closing_loop, max_free_energy);
         for k in i + 1 .. j - 1 {
           let long_k = k as usize;
           for l in k + 1 .. j {
@@ -100,7 +130,10 @@ pub fn get_max_free_energy(seq: SeqSlice, seq_len: usize) -> FreeEnergy {
             let long_accessible_pp = (long_k, long_l);
             if !ss_max_free_energy_mats.max_free_energy_mat_4_base_pairings.contains_key(&accessible_pp) {continue;}
             let ss_max_free_energy_4_base_pairing = ss_max_free_energy_mats.max_free_energy_mat_4_base_pairings[&accessible_pp];
-            let twoloop_free_energy = ss_max_free_energy_4_base_pairing + get_2_loop_fe(seq, &long_pp_closing_loop, &long_accessible_pp);
+            // let twoloop_free_energy = ss_max_free_energy_4_base_pairing + get_2_loop_fe(seq, &long_pp_closing_loop, &long_accessible_pp);
+            let twoloop_free_energy = get_2_loop_fe(seq, &long_pp_closing_loop, &long_accessible_pp);
+            ss_free_energy_mats.twoloop_fe_4d_mat.insert((i, j, k, l), twoloop_free_energy);
+            let twoloop_free_energy = ss_max_free_energy_4_base_pairing + twoloop_free_energy;
             if twoloop_free_energy > max_free_energy {max_free_energy = twoloop_free_energy};
           }
         }
@@ -154,7 +187,7 @@ pub fn get_max_free_energy(seq: SeqSlice, seq_len: usize) -> FreeEnergy {
   ss_max_free_energy_mats.max_free_energy_mat[0][seq_len as usize - 1]
 }
 
-pub fn get_ss_part_func_mats(seq: SeqSlice, seq_len: usize, invert_exp_max_free_energy: FreeEnergy) -> SsPartFuncMats {
+pub fn get_ss_part_func_mats(seq: SeqSlice, seq_len: usize, invert_exp_max_free_energy: FreeEnergy, ss_free_energy_mats: &mut SsFreeEnergyMats) -> SsPartFuncMats {
   let mut ss_part_func_mats = SsPartFuncMats::new(seq_len);
   let seq_len = seq_len as Pos;
   for sub_seq_len in MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL as Pos .. seq_len + 1 {
@@ -166,7 +199,9 @@ pub fn get_ss_part_func_mats(seq: SeqSlice, seq_len: usize, invert_exp_max_free_
       let bp_closing_loop = (seq[long_i], seq[long_j]);
       let mut sum = 0.;
       if long_pp_closing_loop.1 - long_pp_closing_loop.0 + 1 >= MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL && is_canonical(&bp_closing_loop) {
-        sum += get_exp_hl_fe(seq, &long_pp_closing_loop) * invert_exp_max_free_energy;
+        let exp_hl_fe = get_exp_hl_fe(seq, &long_pp_closing_loop);
+        ss_free_energy_mats.exp_hl_fe_mat.insert(pp_closing_loop, exp_hl_fe);
+        sum += exp_hl_fe * invert_exp_max_free_energy;
         for k in i + 1 .. j - 1 {
           let long_k = k as usize;
           for l in k + 1 .. j {
@@ -176,7 +211,9 @@ pub fn get_ss_part_func_mats(seq: SeqSlice, seq_len: usize, invert_exp_max_free_
             let long_accessible_pp = (long_k, long_l);
             if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&accessible_pp) {continue;}
             let ss_part_func_4_base_pairing = ss_part_func_mats.part_func_mat_4_base_pairings[&accessible_pp];
-            sum += ss_part_func_4_base_pairing * get_exp_2_loop_fe(seq, &long_pp_closing_loop, &long_accessible_pp);
+            let exp_2loop_free_energy = get_exp_2_loop_fe(seq, &long_pp_closing_loop, &long_accessible_pp);
+            ss_free_energy_mats.exp_2loop_fe_4d_mat.insert((i, j, k, l), exp_2loop_free_energy);
+            sum += ss_part_func_4_base_pairing * exp_2loop_free_energy;
           }
         }
         let invert_bp_closing_loop = invert_bp(&bp_closing_loop);

@@ -57,7 +57,7 @@ fn main() {
   thread_pool.scoped(|scope| {
     for (bpp_mat, upp_mat, max_free_energy, fasta_record) in multizip((bpp_mats.iter_mut(), upp_mats.iter_mut(), max_free_energies.iter_mut(), fasta_records.iter())) {
       scope.execute(move || {
-        let (obtained_bpp_mat, obtained_upp_mat, obtained_max_free_energy) = get_bpp_and_unpair_prob_mats(&fasta_record.seq[..]);
+        let (obtained_bpp_mat, obtained_upp_mat, obtained_max_free_energy, _) = get_bpp_and_unpair_prob_mats(&fasta_record.seq[..]);
         *bpp_mat = obtained_bpp_mat;
         *upp_mat = obtained_upp_mat;
         *max_free_energy = obtained_max_free_energy;
