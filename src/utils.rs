@@ -7,9 +7,12 @@ pub use std::cmp::{min, max};
 pub use std::str::from_utf8_unchecked;
 pub use getopts::Options;
 pub use itertools::multizip;
+pub use num::{Unsigned, PrimInt, One, Zero, FromPrimitive, ToPrimitive, Bounded, range, range_inclusive, Integer};
+pub use std::hash::Hash;
+pub use std::fmt::Display;
 
-pub type Pos = u16;
-pub type PosPair = (Pos, Pos);
+pub type PosPair<T> = (T, T);
+pub type PosQuadruple<T> = (T, T, T, T);
 pub type Num = usize;
 type NumPair = (Num, Num);
 type Arg = String;
