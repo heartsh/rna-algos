@@ -9,7 +9,8 @@ keywords = ["bioinformatics", "rna", "secondary-structure"]
 license = "MIT"
 
 [dependencies]
-rna-ss-params = "0.1"
+# rna-ss-params = "0.1"
+rna-ss-params = {path = "../rna-ss-params"}
 lazy_static = "0.1"
 bio-seq-algos = "0.1"
 scoped_threadpool = "0.1"

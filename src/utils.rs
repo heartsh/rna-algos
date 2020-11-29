@@ -1,8 +1,6 @@
 pub use rna_ss_params::utils::*;
-pub use rna_ss_params::hairpin_loop_params::*;
-pub use rna_ss_params::helix_params::*;
-pub use rna_ss_params::dangling_end_params::*;
-pub use rna_ss_params::compiled_free_energy_params::*;
+pub use rna_ss_params::compiled_free_energy_params_turner::*;
+pub use rna_ss_params::compiled_free_energy_params_contra::*;
 pub use std::cmp::{min, max};
 pub use std::str::from_utf8_unchecked;
 pub use getopts::Options;
@@ -10,6 +8,13 @@ pub use itertools::multizip;
 pub use num::{Unsigned, PrimInt, One, Zero, FromPrimitive, ToPrimitive, Bounded, range, range_inclusive, Integer};
 pub use std::hash::Hash;
 pub use std::fmt::Display;
+pub use scoped_threadpool::Pool;
+pub use std::env;
+pub use std::path::Path;
+pub use bio::io::fasta::Reader;
+pub use std::io::BufWriter;
+pub use std::fs::File;
+pub use std::fs::create_dir;
 
 pub type PosPair<T> = (T, T);
 pub type PosQuadruple<T> = (T, T, T, T);
@@ -25,6 +30,8 @@ pub struct FastaRecord {
 }
 pub type FastaRecords = Vec<FastaRecord>;
 pub type SeqSlice<'a> = &'a[Base];
+pub type NumOfThreads = u32;
+pub type SparseProbMat<T> = HashMap<PosPair<T>, Prob>;
 
 pub const MAX_SPAN_OF_INDEX_PAIR_CLOSING_IL: usize = MAX_2_LOOP_LEN + 2;
 pub const MIN_SPAN_OF_INDEX_PAIR_CLOSING_ML: usize = MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL * 2 + 2;
@@ -179,6 +186,82 @@ fn get_il_tm_delta_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessibl
       IL_TM_DELTA_FES[bp_closing_loop.0][bp_closing_loop.1][(tm_pair.0).0][(tm_pair.0).1] + IL_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][(tm_pair.1).0][(tm_pair.1).1]
     }
   }
+}
+
+pub fn get_hl_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize)) -> FreeEnergy {
+  let hl_len = pp_closing_loop.1 - pp_closing_loop.0 - 1;
+  let bp_closing_hl = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+  CONTRA_HL_LENGTH_FES[hl_len]
+    + CONTRA_TERMINAL_MISMATCH_FES[bp_closing_hl.0][bp_closing_hl.1][seq[pp_closing_loop.0 + 1]][seq[pp_closing_loop.1 - 1]]
+    + CONTRA_HELIX_CLOSING_FES[bp_closing_hl.1][bp_closing_hl.0]
+    + CONTRA_BASE_PAIR_FES[bp_closing_hl.0][bp_closing_hl.1]
+}
+
+pub fn get_2_loop_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
+  if pp_closing_loop.0 + 1 == accessible_pp.0 && pp_closing_loop.1 - 1 == accessible_pp.1 {
+    get_stack_fe_contra(seq, pp_closing_loop, accessible_pp)
+  } else if pp_closing_loop.0 + 1 == accessible_pp.0 || pp_closing_loop.1 - 1 == accessible_pp.1 {
+    get_bl_fe_contra(seq, pp_closing_loop, accessible_pp)
+  } else {
+    get_il_fe_contra(seq, pp_closing_loop, accessible_pp)
+  }
+}
+
+fn get_stack_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
+  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
+  CONTRA_STACK_FES[bp_closing_loop.0][bp_closing_loop.1][accessible_bp.0][accessible_bp.1]
+    + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1]
+    + if pp_closing_loop.0 > 0 && pp_closing_loop.1 < seq.len() - 1 && is_canonical(&(seq[pp_closing_loop.0 - 1], seq[pp_closing_loop.1 + 1])) {
+      0.
+    } else {
+      CONTRA_HELIX_CLOSING_FES[bp_closing_loop.0][bp_closing_loop.1]
+    }
+}
+
+fn get_bl_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
+  let bl_len = accessible_pp.0 - pp_closing_loop.0 + pp_closing_loop.1 - accessible_pp.1 - 2;
+  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
+  let fe = if bl_len == 1 {
+    CONTRA_BL_0X1_FES[if accessible_pp.0 - pp_closing_loop.0 - 1 == 1 {
+      seq[pp_closing_loop.0 + 1]
+    } else {
+      seq[pp_closing_loop.1 - 1]
+    }]
+  } else {0.};
+  fe + CONTRA_BL_LENGTH_FES[bl_len - 1]
+    + CONTRA_TERMINAL_MISMATCH_FES[bp_closing_loop.0][bp_closing_loop.1][seq[pp_closing_loop.0 + 1]][seq[pp_closing_loop.1 - 1]]
+    + CONTRA_TERMINAL_MISMATCH_FES[accessible_bp.1][accessible_bp.0][seq[accessible_pp.1 + 1]][seq[accessible_pp.0 - 1]]
+    + CONTRA_HELIX_CLOSING_FES[bp_closing_loop.1][bp_closing_loop.0]
+    + CONTRA_HELIX_CLOSING_FES[accessible_bp.0][accessible_bp.1]
+    + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1]
+    + CONTRA_BASE_PAIR_FES[accessible_bp.0][accessible_bp.1]
+}
+
+fn get_il_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
+  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
+  let pair_of_nums_of_unpaired_bases = (accessible_pp.0 - pp_closing_loop.0 - 1, pp_closing_loop.1 - accessible_pp.1 - 1);
+  let il_len = pair_of_nums_of_unpaired_bases.0 + pair_of_nums_of_unpaired_bases.1;
+  let fe = if pair_of_nums_of_unpaired_bases.0 == pair_of_nums_of_unpaired_bases.1 {
+    let fe_3 = if il_len == 2 {
+      CONTRA_IL_1X1_FES[seq[pp_closing_loop.0 + 1]][seq[pp_closing_loop.1 - 1]]
+    } else {0.};
+    fe_3 + CONTRA_IL_SYMM_LENGTH_FES[pair_of_nums_of_unpaired_bases.0 - 1]
+  } else {
+    CONTRA_IL_ASYMM_LENGTH_FES[get_abs_diff(pair_of_nums_of_unpaired_bases.0, pair_of_nums_of_unpaired_bases.1) - 1]
+  };
+  let fe_2 = if pair_of_nums_of_unpaired_bases.0 <= 4 && pair_of_nums_of_unpaired_bases.1 <= 4 {
+    CONTRA_IL_EXPLICIT_FES[pair_of_nums_of_unpaired_bases.0 - 1][pair_of_nums_of_unpaired_bases.1 - 1]
+  } else {0.};
+  fe + fe_2 + CONTRA_IL_LENGTH_FES[il_len - 2]
+    + CONTRA_TERMINAL_MISMATCH_FES[bp_closing_loop.0][bp_closing_loop.1][seq[pp_closing_loop.0 + 1]][seq[pp_closing_loop.1 - 1]]
+    + CONTRA_TERMINAL_MISMATCH_FES[accessible_bp.1][accessible_bp.0][seq[accessible_pp.1 + 1]][seq[accessible_pp.0 - 1]]
+    + CONTRA_HELIX_CLOSING_FES[bp_closing_loop.1][bp_closing_loop.0]
+    + CONTRA_HELIX_CLOSING_FES[accessible_bp.0][accessible_bp.1]
+    + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1]
+    + CONTRA_BASE_PAIR_FES[accessible_bp.0][accessible_bp.1]
 }
 
 pub fn is_rna_base(base: Base) -> bool {
