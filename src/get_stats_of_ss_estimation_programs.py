@@ -10,6 +10,8 @@ import math
 from math import sqrt
 import multiprocessing
 
+seaborn.set()
+
 def main():
   (current_work_dir_path, asset_dir_path, program_dir_path, conda_program_dir_path) = utils.get_dir_paths()
   num_of_threads = multiprocessing.cpu_count()
