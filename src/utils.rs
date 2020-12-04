@@ -190,39 +190,35 @@ fn get_il_tm_delta_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessibl
 
 pub fn get_hl_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize)) -> FreeEnergy {
   let hl_len = pp_closing_loop.1 - pp_closing_loop.0 - 1;
-  let bp_closing_hl = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
-  CONTRA_HL_LENGTH_FES[hl_len]
-    + CONTRA_TERMINAL_MISMATCH_FES[bp_closing_hl.0][bp_closing_hl.1][seq[pp_closing_loop.0 + 1]][seq[pp_closing_loop.1 - 1]]
-    + CONTRA_HELIX_CLOSING_FES[bp_closing_hl.1][bp_closing_hl.0]
-    + CONTRA_BASE_PAIR_FES[bp_closing_hl.0][bp_closing_hl.1]
+  // let bp_closing_hl = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+  CONTRA_HL_LENGTH_FES[hl_len.min(CONTRA_MAX_LOOP_LEN)]
+    + get_contra_junction_fe_single(seq, pp_closing_loop)
+    // + CONTRA_TERMINAL_MISMATCH_FES[bp_closing_hl.0][bp_closing_hl.1][seq[pp_closing_loop.0 + 1]][seq[pp_closing_loop.1 - 1]]
+    // + CONTRA_HELIX_CLOSING_FES[bp_closing_hl.0][bp_closing_hl.1]
 }
 
 pub fn get_2_loop_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
-  if pp_closing_loop.0 + 1 == accessible_pp.0 && pp_closing_loop.1 - 1 == accessible_pp.1 {
+  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
+  let fe = if pp_closing_loop.0 + 1 == accessible_pp.0 && pp_closing_loop.1 - 1 == accessible_pp.1 {
     get_stack_fe_contra(seq, pp_closing_loop, accessible_pp)
   } else if pp_closing_loop.0 + 1 == accessible_pp.0 || pp_closing_loop.1 - 1 == accessible_pp.1 {
     get_bl_fe_contra(seq, pp_closing_loop, accessible_pp)
   } else {
     get_il_fe_contra(seq, pp_closing_loop, accessible_pp)
-  }
+  };
+  fe + CONTRA_BASE_PAIR_FES[accessible_bp.0][accessible_bp.1]
 }
 
-fn get_stack_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
+pub fn get_stack_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
   let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
   let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
   CONTRA_STACK_FES[bp_closing_loop.0][bp_closing_loop.1][accessible_bp.0][accessible_bp.1]
-    + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1]
-    + if pp_closing_loop.0 > 0 && pp_closing_loop.1 < seq.len() - 1 && is_canonical(&(seq[pp_closing_loop.0 - 1], seq[pp_closing_loop.1 + 1])) {
-      0.
-    } else {
-      CONTRA_HELIX_CLOSING_FES[bp_closing_loop.0][bp_closing_loop.1]
-    }
 }
 
-fn get_bl_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
+pub fn get_bl_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
   let bl_len = accessible_pp.0 - pp_closing_loop.0 + pp_closing_loop.1 - accessible_pp.1 - 2;
-  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
-  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
+  /* let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]); */
   let fe = if bl_len == 1 {
     CONTRA_BL_0X1_FES[if accessible_pp.0 - pp_closing_loop.0 - 1 == 1 {
       seq[pp_closing_loop.0 + 1]
@@ -231,17 +227,17 @@ fn get_bl_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_
     }]
   } else {0.};
   fe + CONTRA_BL_LENGTH_FES[bl_len - 1]
-    + CONTRA_TERMINAL_MISMATCH_FES[bp_closing_loop.0][bp_closing_loop.1][seq[pp_closing_loop.0 + 1]][seq[pp_closing_loop.1 - 1]]
+    + get_contra_junction_fe_single(seq, pp_closing_loop)
+    + get_contra_junction_fe_single(seq, &(accessible_pp.1, accessible_pp.0))
+    /* + CONTRA_TERMINAL_MISMATCH_FES[bp_closing_loop.0][bp_closing_loop.1][seq[pp_closing_loop.0 + 1]][seq[pp_closing_loop.1 - 1]]
     + CONTRA_TERMINAL_MISMATCH_FES[accessible_bp.1][accessible_bp.0][seq[accessible_pp.1 + 1]][seq[accessible_pp.0 - 1]]
-    + CONTRA_HELIX_CLOSING_FES[bp_closing_loop.1][bp_closing_loop.0]
-    + CONTRA_HELIX_CLOSING_FES[accessible_bp.0][accessible_bp.1]
-    + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1]
-    + CONTRA_BASE_PAIR_FES[accessible_bp.0][accessible_bp.1]
+    + CONTRA_HELIX_CLOSING_FES[bp_closing_loop.0][bp_closing_loop.1]
+    + CONTRA_HELIX_CLOSING_FES[accessible_bp.1][accessible_bp.0] */
 }
 
-fn get_il_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
-  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
-  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
+pub fn get_il_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
+  /* let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]); */
   let pair_of_nums_of_unpaired_bases = (accessible_pp.0 - pp_closing_loop.0 - 1, pp_closing_loop.1 - accessible_pp.1 - 1);
   let il_len = pair_of_nums_of_unpaired_bases.0 + pair_of_nums_of_unpaired_bases.1;
   let fe = if pair_of_nums_of_unpaired_bases.0 == pair_of_nums_of_unpaired_bases.1 {
@@ -256,12 +252,38 @@ fn get_il_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_
     CONTRA_IL_EXPLICIT_FES[pair_of_nums_of_unpaired_bases.0 - 1][pair_of_nums_of_unpaired_bases.1 - 1]
   } else {0.};
   fe + fe_2 + CONTRA_IL_LENGTH_FES[il_len - 2]
-    + CONTRA_TERMINAL_MISMATCH_FES[bp_closing_loop.0][bp_closing_loop.1][seq[pp_closing_loop.0 + 1]][seq[pp_closing_loop.1 - 1]]
+    + get_contra_junction_fe_single(seq, pp_closing_loop)
+    + get_contra_junction_fe_single(seq, &(accessible_pp.1, accessible_pp.0))
+    /* + CONTRA_TERMINAL_MISMATCH_FES[bp_closing_loop.0][bp_closing_loop.1][seq[pp_closing_loop.0 + 1]][seq[pp_closing_loop.1 - 1]]
     + CONTRA_TERMINAL_MISMATCH_FES[accessible_bp.1][accessible_bp.0][seq[accessible_pp.1 + 1]][seq[accessible_pp.0 - 1]]
-    + CONTRA_HELIX_CLOSING_FES[bp_closing_loop.1][bp_closing_loop.0]
-    + CONTRA_HELIX_CLOSING_FES[accessible_bp.0][accessible_bp.1]
-    + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1]
-    + CONTRA_BASE_PAIR_FES[accessible_bp.0][accessible_bp.1]
+    + CONTRA_HELIX_CLOSING_FES[bp_closing_loop.0][bp_closing_loop.1]
+    + CONTRA_HELIX_CLOSING_FES[accessible_bp.1][accessible_bp.0] */
+}
+
+pub fn get_contra_junction_fe_multi(seq: SeqSlice, pp: &(usize, usize), seq_len: usize) -> FreeEnergy {
+  let bp = (seq[pp.0], seq[pp.1]);
+  get_contra_helix_closing_fe(&bp) + if pp.0 < seq_len - 1 && pp.1 > 0 {
+    CONTRA_LEFT_DANGLE_FES[bp.0][bp.1][seq[pp.0 + 1]] + CONTRA_RIGHT_DANGLE_FES[bp.0][bp.1][seq[pp.1 - 1]]
+  } else if pp.0 < seq_len - 1 {
+    CONTRA_LEFT_DANGLE_FES[bp.0][bp.1][seq[pp.0 + 1]]
+  } else if pp.1 > 0 {
+    CONTRA_RIGHT_DANGLE_FES[bp.0][bp.1][seq[pp.1 - 1]]
+  } else {
+    0.
+  }
+}
+
+pub fn get_contra_junction_fe_single(seq: SeqSlice, pp: &(usize, usize)) -> FreeEnergy {
+  let bp = (seq[pp.0], seq[pp.1]);
+  get_contra_helix_closing_fe(&bp) + get_contra_terminal_mismatch_fe(&bp, &(seq[pp.0 + 1], seq[pp.1 - 1]))
+}
+
+pub fn get_contra_helix_closing_fe(bp: &BasePair) -> FreeEnergy {
+  CONTRA_HELIX_CLOSING_FES[bp.0][bp.1]
+}
+
+pub fn get_contra_terminal_mismatch_fe(bp: &BasePair, mismatch_bp: &BasePair) -> FreeEnergy {
+  CONTRA_TERMINAL_MISMATCH_FES[bp.0][bp.1][mismatch_bp.0][mismatch_bp.1]
 }
 
 pub fn is_rna_base(base: Base) -> bool {

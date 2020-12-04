@@ -71,8 +71,30 @@ impl<T: Unsigned + PrimInt + Hash + One> SsFreeEnergyMats<T> {
     }
   }
   pub fn sparsify(&mut self, bpp_mat: &SparseProbMat<T>, min_bpp: Prob) {
-    self.hl_fe_mat = self.hl_fe_mat.iter().filter(|(pos_pair, _)| {bpp_mat[pos_pair] >= min_bpp}).map(|(&(i, j), &free_energy)| {((i + T::one(), j + T::one()), free_energy)}).collect();
-    self.twoloop_fe_4d_mat = self.twoloop_fe_4d_mat.iter().filter(|(&(i, j, k, l), _)| {bpp_mat[&(i, j)] >= min_bpp && bpp_mat[&(k, l)] >= min_bpp}).map(|(&(i, j, k, l), &free_energy)| {((i + T::one(), j + T::one(), k + T::one(), l + T::one()), free_energy)}).collect();
+    self.hl_fe_mat = self.hl_fe_mat.iter().filter(|(pos_pair, _)| {
+      match bpp_mat.get(&pos_pair) {
+        Some(&bpp) => {
+          bpp >= min_bpp
+        }, None => {
+          false
+        },
+      }
+    }).map(|(&(i, j), &free_energy)| {((i + T::one(), j + T::one()), free_energy)}).collect();
+    self.twoloop_fe_4d_mat = self.twoloop_fe_4d_mat.iter().filter(|(&(i, j, k, l), _)| {
+      match bpp_mat.get(&(i, j)) {
+        Some(&bpp) => {
+          match bpp_mat.get(&(k, l)) {
+            Some(&bpp_2) => {
+              bpp >= min_bpp && bpp_2 >= min_bpp
+            }, None => {
+              false
+            },
+          }
+        }, None => {
+          false
+        },
+      }
+    }).map(|(&(i, j, k, l), &free_energy)| {((i + T::one(), j + T::one(), k + T::one(), l + T::one()), free_energy)}).collect();
   }
 }
 
@@ -95,9 +117,9 @@ where
   let seq_len = seq.len();
   let mut ss_free_energy_mats = SsFreeEnergyMats::<T>::new();
   let bpp_mats = if uses_contra_model {
-    get_base_pairing_prob_mats::<T>(seq, &get_ss_part_func_mats::<T>(seq, seq_len, &mut ss_free_energy_mats), seq_len, &ss_free_energy_mats)
-  } else {
     get_base_pairing_prob_mats_contra::<T>(seq, &get_ss_part_func_mats_contra::<T>(seq, seq_len, &mut ss_free_energy_mats), seq_len, &ss_free_energy_mats)
+  } else {
+    get_base_pairing_prob_mats::<T>(seq, &get_ss_part_func_mats::<T>(seq, seq_len, &mut ss_free_energy_mats), seq_len, &ss_free_energy_mats)
   };
   (bpp_mats, ss_free_energy_mats)
 }
@@ -210,16 +232,16 @@ where
   T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
 {
   let mut ss_part_func_mats = SsPartFuncMatsContra::<T>::new(seq_len);
-  let seq_len = T::from_usize(seq_len).unwrap();
-  for sub_seq_len in range_inclusive(T::one(), seq_len) {
-    for i in range_inclusive(T::zero(), seq_len - sub_seq_len) {
+  let short_seq_len = T::from_usize(seq_len).unwrap();
+  for sub_seq_len in range_inclusive(T::one(), short_seq_len) {
+    for i in range_inclusive(T::zero(), short_seq_len - sub_seq_len) {
       let j = i + sub_seq_len - T::one();
       let (long_i, long_j) = (i.to_usize().unwrap(), j.to_usize().unwrap());
       let pp_closing_loop = (i, j);
       let long_pp_closing_loop = (long_i, long_j);
       let bp_closing_loop = (seq[long_i], seq[long_j]);
       let mut sum = NEG_INFINITY;
-      if is_canonical(&bp_closing_loop) {
+      if long_pp_closing_loop.1 - long_pp_closing_loop.0 + 1 >= MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL && is_canonical(&bp_closing_loop) {
         if long_j - long_i - 1 <= CONTRA_MAX_LOOP_LEN {
           let hl_fe = get_hl_fe_contra(seq, &long_pp_closing_loop);
           ss_free_energy_mats.hl_fe_mat.insert(pp_closing_loop, hl_fe);
@@ -241,24 +263,13 @@ where
             }
           }
         }
-        let stack_bp = (seq[long_i + 1], seq[long_j - 1]);
-        let ml_tm_delta_fe = CONTRA_LEFT_DANGLE_FES[bp_closing_loop.0][bp_closing_loop.1][stack_bp.0] + CONTRA_RIGHT_DANGLE_FES[bp_closing_loop.0][bp_closing_loop.1][stack_bp.1];
-        let coefficient = CONTRA_ML_BASE_FE + CONTRA_ML_PAIRED_FE + ml_tm_delta_fe + CONTRA_HELIX_CLOSING_FES[bp_closing_loop.1][bp_closing_loop.0] + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1];
+        let coefficient = CONTRA_ML_BASE_FE + CONTRA_ML_PAIRED_FE + get_contra_junction_fe_multi(seq, &long_pp_closing_loop, seq_len);
         for k in long_i + 1 .. long_j {
           logsumexp(&mut sum, ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_i + 1][k - 1] + ss_part_func_mats.part_func_mat_4_rightmost_base_pairings_on_mls[k][long_j - 1] + coefficient);
         }
         if sum > NEG_INFINITY {
           ss_part_func_mats.part_func_mat_4_base_pairings.insert(pp_closing_loop, sum);
-          let dangle_fe = if i > T::zero() && j < seq_len - T::one() {
-            CONTRA_LEFT_DANGLE_FES[bp_closing_loop.1][bp_closing_loop.0][seq[long_j + 1]] + CONTRA_RIGHT_DANGLE_FES[bp_closing_loop.1][bp_closing_loop.0][seq[long_i - 1]]
-          } else if i > T::zero() {
-            CONTRA_RIGHT_DANGLE_FES[bp_closing_loop.1][bp_closing_loop.0][seq[long_i - 1]]
-          } else if j < seq_len - T::one() {
-            CONTRA_LEFT_DANGLE_FES[bp_closing_loop.1][bp_closing_loop.0][seq[long_j + 1]]
-          } else {
-            0.
-          };
-          let sum = sum + dangle_fe;
+          let sum = sum + get_contra_junction_fe_multi(seq, &(long_pp_closing_loop.1, long_pp_closing_loop.0), seq_len) + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1];
           ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_el.insert(pp_closing_loop, sum + CONTRA_EL_PAIRED_FE);
           ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_mls.insert(pp_closing_loop, sum + CONTRA_ML_PAIRED_FE);
         }
@@ -412,13 +423,11 @@ where
       for k in range(j + T::one(), short_seq_len) {
         let long_k = k.to_usize().unwrap();
         let pp_closing_loop = (i, k);
+        let long_pp_closing_loop = (i.to_usize().unwrap(), k.to_usize().unwrap());
         match ss_part_func_mats.part_func_mat_4_base_pairings.get(&pp_closing_loop) {
           Some(&part_func) => {
             let bpp = bpp_mats.bpp_mat[&pp_closing_loop];
-            let bp_closing_loop = (seq[long_i], seq[long_k]);
-            let stack_bp = (seq[long_i + 1], seq[long_k - 1]);
-            let ml_tm_delta_fe = CONTRA_LEFT_DANGLE_FES[bp_closing_loop.0][bp_closing_loop.1][stack_bp.0] + CONTRA_RIGHT_DANGLE_FES[bp_closing_loop.0][bp_closing_loop.1][stack_bp.1];
-            let coefficient = bpp + ml_tm_delta_fe - part_func + CONTRA_ML_BASE_FE + CONTRA_ML_PAIRED_FE;
+            let coefficient = bpp + get_contra_junction_fe_multi(seq, &long_pp_closing_loop, seq_len) - part_func + CONTRA_ML_BASE_FE + CONTRA_ML_PAIRED_FE;
             logsumexp(&mut sum_1, coefficient + ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_j + 1][long_k - 1]);
             logsumexp(&mut sum_2, coefficient + CONTRA_ML_UNPAIRED_FE * (k - j - T::one()).to_f32().unwrap());
           }, None => {},
