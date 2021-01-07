@@ -25,13 +25,6 @@ pub struct SsFreeEnergyMats<T: Hash> {
   pub twoloop_fe_4d_mat: HashMap<PosQuadruple<T>, FreeEnergy>,
 }
 pub type FreeEnergy4dMat<T> = HashMap<PosQuadruple<T>, FreeEnergy>;
-#[derive(Clone)]
-pub struct SsProbMats<T: Hash> {
-  pub bpp_mat: SparseProbMat<T>,
-  pub access_bpp_mat_4_2l: SparseProbMat<T>,
-  pub access_bpp_mat_4_ml: SparseProbMat<T>,
-  pub bpp_mat_4_el: SparseProbMat<T>,
-}
 
 impl<T: Hash> SsPartFuncMats<T> {
   fn new(seq_len: usize) -> SsPartFuncMats<T> {
@@ -70,81 +63,20 @@ impl<T: Unsigned + PrimInt + Hash + One> SsFreeEnergyMats<T> {
       twoloop_fe_4d_mat: free_energy_4d_mat,
     }
   }
-  pub fn sparsify(&mut self, bpp_mat: &SparseProbMat<T>, min_bpp: Prob) {
-    self.hl_fe_mat = self.hl_fe_mat.iter().filter(|(pos_pair, _)| {
-      match bpp_mat.get(&pos_pair) {
-        Some(&bpp) => {
-          bpp >= min_bpp
-        }, None => {
-          false
-        },
-      }
-    }).map(|(&(i, j), &free_energy)| {((i + T::one(), j + T::one()), free_energy)}).collect();
-    self.twoloop_fe_4d_mat = self.twoloop_fe_4d_mat.iter().filter(|(&(i, j, k, l), _)| {
-      match bpp_mat.get(&(i, j)) {
-        Some(&bpp) => {
-          match bpp_mat.get(&(k, l)) {
-            Some(&bpp_2) => {
-              bpp >= min_bpp && bpp_2 >= min_bpp
-            }, None => {
-              false
-            },
-          }
-        }, None => {
-          false
-        },
-      }
-    }).map(|(&(i, j, k, l), &free_energy)| {((i + T::one(), j + T::one(), k + T::one(), l + T::one()), free_energy)}).collect();
-  }
 }
 
-impl<T: Unsigned + PrimInt + Hash> SsProbMats<T> {
-  pub fn new() -> SsProbMats<T> {
-    let prob_mat = HashMap::<PosPair<T>, Prob>::default();
-    SsProbMats {
-      bpp_mat: prob_mat.clone(),
-      access_bpp_mat_4_2l: prob_mat.clone(),
-      access_bpp_mat_4_ml: prob_mat.clone(),
-      bpp_mat_4_el: prob_mat,
-    }
-  }
-}
-
-pub fn mccaskill_algo<T>(seq: SeqSlice, uses_contra_model: bool) -> (SsProbMats<T>, SsFreeEnergyMats<T>)
+pub fn mccaskill_algo<T>(seq: SeqSlice, uses_contra_model: bool) -> SparseProbMat<T>
 where
   T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
 {
   let seq_len = seq.len();
   let mut ss_free_energy_mats = SsFreeEnergyMats::<T>::new();
-  let bpp_mats = if uses_contra_model {
-    get_base_pairing_prob_mats_contra::<T>(seq, &get_ss_part_func_mats_contra::<T>(seq, seq_len, &mut ss_free_energy_mats), seq_len, &ss_free_energy_mats)
+  let bpp_mat = if uses_contra_model {
+    get_base_pairing_prob_mat_contra::<T>(seq, &get_ss_part_func_mats_contra::<T>(seq, seq_len, &mut ss_free_energy_mats), seq_len, &ss_free_energy_mats)
   } else {
-    get_base_pairing_prob_mats::<T>(seq, &get_ss_part_func_mats::<T>(seq, seq_len, &mut ss_free_energy_mats), seq_len, &ss_free_energy_mats)
+    get_base_pairing_prob_mat::<T>(seq, &get_ss_part_func_mats::<T>(seq, seq_len, &mut ss_free_energy_mats), seq_len, &ss_free_energy_mats)
   };
-  (bpp_mats, ss_free_energy_mats)
-}
-
-pub fn get_bpp_and_unpair_prob_mats<T>(seq: SeqSlice, uses_contra_model: bool) -> (SsProbMats<T>, Probs, SsFreeEnergyMats<T>)
-where
-  T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
-{
-  let seq_len = seq.len();
-  let (bpp_mats, ss_free_energy_mats) = mccaskill_algo::<T>(&seq[..], uses_contra_model);
-  let mut unpair_prob_mat = vec![1.; seq_len];
-  let seq_len = T::from_usize(seq_len).unwrap();
-  for i in range(T::zero(), seq_len) {
-    let long_i = i.to_usize().unwrap();
-    let mut sum = 0.;
-    for j in range(T::zero(), seq_len) {
-      if j == i {continue;}
-      let pp = if j < i {(j, i)} else {(i, j)};
-      if !bpp_mats.bpp_mat.contains_key(&pp) {continue;}
-      sum += bpp_mats.bpp_mat[&pp];
-    }
-    debug_assert!(0. <= sum && sum <= 1.);
-    unpair_prob_mat[long_i] = 1. - sum;
-  }
-  (bpp_mats, unpair_prob_mat, ss_free_energy_mats)
+  bpp_mat
 }
 
 pub fn get_ss_part_func_mats<T>(seq: SeqSlice, seq_len: usize, ss_free_energy_mats: &mut SsFreeEnergyMats<T>) -> SsPartFuncMats<T>
@@ -263,13 +195,13 @@ where
             }
           }
         }
-        let coefficient = CONTRA_ML_BASE_FE + CONTRA_ML_PAIRED_FE + get_contra_junction_fe_multi(seq, &long_pp_closing_loop, seq_len);
+        let coefficient = CONTRA_ML_BASE_FE + CONTRA_ML_PAIRED_FE + get_contra_junction_fe_multi(seq, &long_pp_closing_loop, seq_len, false);
         for k in long_i + 1 .. long_j {
           logsumexp(&mut sum, ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_i + 1][k - 1] + ss_part_func_mats.part_func_mat_4_rightmost_base_pairings_on_mls[k][long_j - 1] + coefficient);
         }
         if sum > NEG_INFINITY {
           ss_part_func_mats.part_func_mat_4_base_pairings.insert(pp_closing_loop, sum);
-          let sum = sum + get_contra_junction_fe_multi(seq, &(long_pp_closing_loop.1, long_pp_closing_loop.0), seq_len) + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1];
+          let sum = sum + get_contra_junction_fe_multi(seq, &(long_pp_closing_loop.1, long_pp_closing_loop.0), seq_len, false) + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1];
           ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_el.insert(pp_closing_loop, sum + CONTRA_EL_PAIRED_FE);
           ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_mls.insert(pp_closing_loop, sum + CONTRA_ML_PAIRED_FE);
         }
@@ -309,12 +241,12 @@ where
   ss_part_func_mats
 }
 
-fn get_base_pairing_prob_mats<T>(seq: SeqSlice, ss_part_func_mats: &SsPartFuncMats<T>, seq_len: usize, ss_free_energy_mats: &SsFreeEnergyMats<T>) -> SsProbMats<T>
+fn get_base_pairing_prob_mat<T>(seq: SeqSlice, ss_part_func_mats: &SsPartFuncMats<T>, seq_len: usize, ss_free_energy_mats: &SsFreeEnergyMats<T>) -> SparseProbMat<T>
 where
   T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
 {
   let ss_part_func = ss_part_func_mats.part_func_mat[0][seq_len - 1];
-  let mut bpp_mats = SsProbMats::<T>::new();
+  let mut bpp_mat = SparseProbMat::<T>::default();
   let mut prob_mat_4_mls_1 = vec![vec![NEG_INFINITY; seq_len]; seq_len];
   let mut prob_mat_4_mls_2 = prob_mat_4_mls_1.clone();
   let short_seq_len = T::from_usize(seq_len).unwrap();
@@ -329,7 +261,7 @@ where
         let pp_closing_loop = (i, k);
         if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&pp_closing_loop) {continue;}
         let ss_part_func_4_base_pairing = ss_part_func_mats.part_func_mat_4_base_pairings[&pp_closing_loop];
-        let bpp = bpp_mats.bpp_mat[&pp_closing_loop];
+        let bpp = bpp_mat[&pp_closing_loop];
         let bp_closing_loop = (seq[long_i], seq[long_k]);
         let invert_bp_closing_loop = invert_bp(&bp_closing_loop);
         let invert_stacking_bp = invert_bp(&(seq[long_i + 1], seq[long_k - 1]));
@@ -357,9 +289,6 @@ where
       } else {
         0.
       } + if is_au_or_gu(&accessible_bp) {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.};
-      if sum > NEG_INFINITY {
-        bpp_mats.bpp_mat_4_el.insert(accessible_pp, sum.exp());
-      }
       let mut bpp_4_2l = NEG_INFINITY;
       for k in range(T::zero(), i) {
         let long_k = k.to_usize().unwrap();
@@ -369,11 +298,10 @@ where
           let pp_closing_loop = (k, l);
           if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&pp_closing_loop) {continue;}
           let ss_part_func_4_base_pairing_2 = ss_part_func_mats.part_func_mat_4_base_pairings[&pp_closing_loop];
-          logsumexp(&mut bpp_4_2l, bpp_mats.bpp_mat[&pp_closing_loop] + ss_part_func_4_base_pairing_1 - ss_part_func_4_base_pairing_2 + ss_free_energy_mats.twoloop_fe_4d_mat[&(k, l, i, j)]);
+          logsumexp(&mut bpp_4_2l, bpp_mat[&pp_closing_loop] + ss_part_func_4_base_pairing_1 - ss_part_func_4_base_pairing_2 + ss_free_energy_mats.twoloop_fe_4d_mat[&(k, l, i, j)]);
         }
       }
       if bpp_4_2l > NEG_INFINITY {
-        bpp_mats.access_bpp_mat_4_2l.insert(accessible_pp, bpp_4_2l.exp());
         logsumexp(&mut sum, bpp_4_2l);
       }
       let coefficient = ss_part_func_4_base_pairing_1 + CONST_4_INIT_ML_DELTA_FE + COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE + if i > T::zero() && j < short_seq_len - T::one() {
@@ -394,23 +322,22 @@ where
         logsumexp(&mut bpp_4_ml, coefficient + prob_4_mls + ss_part_func_4_at_least_1_base_pairings_on_mls);
       }
       if bpp_4_ml > NEG_INFINITY {
-        bpp_mats.access_bpp_mat_4_ml.insert(accessible_pp, bpp_4_ml.exp());
         logsumexp(&mut sum, bpp_4_ml);
       }
       debug_assert!(NEG_INFINITY <= sum && sum <= 0.);
-      bpp_mats.bpp_mat.insert(accessible_pp, sum);
+      bpp_mat.insert(accessible_pp, sum);
     }
   }
-  bpp_mats.bpp_mat = bpp_mats.bpp_mat.iter().map(|(pos_pair, &bpp)| {(*pos_pair, bpp.exp())}).collect();
-  bpp_mats
+  bpp_mat = bpp_mat.iter().map(|(pos_pair, &bpp)| {(*pos_pair, bpp.exp())}).collect();
+  bpp_mat
 }
 
-fn get_base_pairing_prob_mats_contra<T>(seq: SeqSlice, ss_part_func_mats: &SsPartFuncMatsContra<T>, seq_len: usize, ss_free_energy_mats: &SsFreeEnergyMats<T>) -> SsProbMats<T>
+fn get_base_pairing_prob_mat_contra<T>(seq: SeqSlice, ss_part_func_mats: &SsPartFuncMatsContra<T>, seq_len: usize, ss_free_energy_mats: &SsFreeEnergyMats<T>) -> SparseProbMat<T>
 where
   T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
 {
   let ss_part_func = ss_part_func_mats.part_func_mat[0][seq_len - 1];
-  let mut bpp_mats = SsProbMats::<T>::new();
+  let mut bpp_mat = SparseProbMat::<T>::default();
   let mut prob_mat_4_mls_1 = vec![vec![NEG_INFINITY; seq_len]; seq_len];
   let mut prob_mat_4_mls_2 = prob_mat_4_mls_1.clone();
   let short_seq_len = T::from_usize(seq_len).unwrap();
@@ -426,8 +353,8 @@ where
         let long_pp_closing_loop = (i.to_usize().unwrap(), k.to_usize().unwrap());
         match ss_part_func_mats.part_func_mat_4_base_pairings.get(&pp_closing_loop) {
           Some(&part_func) => {
-            let bpp = bpp_mats.bpp_mat[&pp_closing_loop];
-            let coefficient = bpp + get_contra_junction_fe_multi(seq, &long_pp_closing_loop, seq_len) - part_func + CONTRA_ML_BASE_FE + CONTRA_ML_PAIRED_FE;
+            let bpp = bpp_mat[&pp_closing_loop];
+            let coefficient = bpp + get_contra_junction_fe_multi(seq, &long_pp_closing_loop, seq_len, false) - part_func + CONTRA_ML_BASE_FE + CONTRA_ML_PAIRED_FE;
             logsumexp(&mut sum_1, coefficient + ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_j + 1][long_k - 1]);
             logsumexp(&mut sum_2, coefficient + CONTRA_ML_UNPAIRED_FE * (k - j - T::one()).to_f32().unwrap());
           }, None => {},
@@ -443,9 +370,6 @@ where
             if accessible_pp.1 > short_seq_len - T::from_usize(2).unwrap() {0.} else {ss_part_func_mats.part_func_mat[long_j + 1][seq_len - 1]},
           );
           let mut sum = part_func_pair.0 + part_func_pair.1 + ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_el[&accessible_pp] - ss_part_func;
-          if sum > NEG_INFINITY {
-            bpp_mats.bpp_mat_4_el.insert(accessible_pp, sum.exp());
-          }
           let mut bpp_4_2l = NEG_INFINITY;
           for k in range(T::zero(), i) {
             let long_k = k.to_usize().unwrap();
@@ -455,13 +379,12 @@ where
               let pp_closing_loop = (k, l);
               match ss_part_func_mats.part_func_mat_4_base_pairings.get(&pp_closing_loop) {
                 Some(&part_func_2) => {
-                  logsumexp(&mut bpp_4_2l, bpp_mats.bpp_mat[&pp_closing_loop] + part_func - part_func_2 + ss_free_energy_mats.twoloop_fe_4d_mat[&(k, l, i, j)]);
+                  logsumexp(&mut bpp_4_2l, bpp_mat[&pp_closing_loop] + part_func - part_func_2 + ss_free_energy_mats.twoloop_fe_4d_mat[&(k, l, i, j)]);
                 }, None => {},
               }
             }
           }
           if bpp_4_2l > NEG_INFINITY {
-            bpp_mats.access_bpp_mat_4_2l.insert(accessible_pp, bpp_4_2l.exp());
             logsumexp(&mut sum, bpp_4_2l);
           }
           let coefficient = ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_mls[&accessible_pp];
@@ -474,17 +397,16 @@ where
             logsumexp(&mut bpp_4_ml, coefficient + prob_4_mls + ss_part_func_4_at_least_1_base_pairings_on_mls);
           }
           if bpp_4_ml > NEG_INFINITY {
-            bpp_mats.access_bpp_mat_4_ml.insert(accessible_pp, bpp_4_ml.exp());
             logsumexp(&mut sum, bpp_4_ml);
           }
           debug_assert!(NEG_INFINITY <= sum && sum <= 0.);
-          bpp_mats.bpp_mat.insert(accessible_pp, sum);
+          bpp_mat.insert(accessible_pp, sum);
         }, None => {},
       }
     }
   }
-  bpp_mats.bpp_mat = bpp_mats.bpp_mat.iter().map(|(pos_pair, &bpp)| {(*pos_pair, bpp.exp())}).collect();
-  bpp_mats
+  bpp_mat = bpp_mat.iter().map(|(pos_pair, &bpp)| {(*pos_pair, bpp.exp())}).collect();
+  bpp_mat
 }
 
 pub fn logsumexp(sum: &mut FreeEnergy, new_term: FreeEnergy) {
