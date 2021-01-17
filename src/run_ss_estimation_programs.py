@@ -68,8 +68,8 @@ def main():
   begin = time.time()
   pool.map(run_centroidfold, centroidfold_params)
   centroidfold_elapsed_time = time.time() - begin
-print("The elapsed time of centroid estimator (Turner) = %f [s]." % centroid_estimator_turner_elapsed_time)
-print("The elapsed time of centroid estimator (CONTRAfold) = %f [s]." % centroid_estimator_contra_elapsed_time)
+  print("The elapsed time of centroid estimator (Turner) = %f [s]." % centroid_estimator_turner_elapsed_time)
+  print("The elapsed time of centroid estimator (CONTRAfold) = %f [s]." % centroid_estimator_contra_elapsed_time)
   print("The elapsed time of CentroidFold (CONTRAfold) = %f [s]." % centroidfold_elapsed_time)
   shutil.rmtree(temp_dir_path)
 
