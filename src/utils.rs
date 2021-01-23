@@ -188,6 +188,31 @@ fn get_il_tm_delta_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessibl
   }
 }
 
+pub fn get_ml_closing_basepairing_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize)) -> FreeEnergy {
+  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
+  let invert_bp_closing_loop = invert_bp(&bp_closing_loop);
+  let invert_stacking_bp = invert_bp(&(seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]));
+  let ml_tm_delta_fe = ML_TM_DELTA_FES[invert_bp_closing_loop.0][invert_bp_closing_loop.1][invert_stacking_bp.0][invert_stacking_bp.1];
+  CONST_4_INIT_ML_DELTA_FE + ml_tm_delta_fe + if is_au_or_gu(&bp_closing_loop) {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.}
+}
+
+pub fn get_ml_or_el_accessible_basepairing_fe(seq: SeqSlice, pp_accessible: &(usize, usize), uses_sentinel_nucs: bool) -> FreeEnergy {
+  let seq_len = seq.len();
+  let five_prime_end = if uses_sentinel_nucs {1} else {0};
+  let three_prime_end = seq_len - if uses_sentinel_nucs {2} else {1};
+  let accessible_bp = (seq[pp_accessible.0], seq[pp_accessible.1]);
+  let fe = if pp_accessible.0 > five_prime_end && pp_accessible.1 < three_prime_end {
+    ML_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[pp_accessible.0 - 1]][seq[pp_accessible.1 + 1]]
+  } else if pp_accessible.0 > five_prime_end {
+    FIVE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[pp_accessible.0 - 1]]
+  } else if pp_accessible.1 < three_prime_end {
+    THREE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[pp_accessible.1 + 1]]
+  } else {
+    0.
+  } + if is_au_or_gu(&accessible_bp) {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.};
+  fe
+}
+
 pub fn get_hl_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize)) -> FreeEnergy {
   let hl_len = pp_closing_loop.1 - pp_closing_loop.0 - 1;
   CONTRA_HL_LENGTH_FES[hl_len.min(CONTRA_MAX_LOOP_LEN)]
@@ -247,13 +272,13 @@ pub fn get_il_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessi
 
 pub fn get_contra_junction_fe_multi(seq: SeqSlice, pp: &(usize, usize), seq_len: usize, uses_sentinel_nucs: bool) -> FreeEnergy {
   let bp = (seq[pp.0], seq[pp.1]);
-  let three_prime_end = if uses_sentinel_nucs {1} else {0};
-  let five_prime_end = seq_len - if uses_sentinel_nucs {2} else {1};
-  get_contra_helix_closing_fe(&bp) + if pp.0 < five_prime_end && pp.1 > three_prime_end {
+  let five_prime_end = if uses_sentinel_nucs {1} else {0};
+  let three_prime_end = seq_len - if uses_sentinel_nucs {2} else {1};
+  get_contra_helix_closing_fe(&bp) + if pp.0 < three_prime_end && pp.1 > five_prime_end {
     CONTRA_LEFT_DANGLE_FES[bp.0][bp.1][seq[pp.0 + 1]] + CONTRA_RIGHT_DANGLE_FES[bp.0][bp.1][seq[pp.1 - 1]]
-  } else if pp.0 < five_prime_end {
+  } else if pp.0 < three_prime_end {
     CONTRA_LEFT_DANGLE_FES[bp.0][bp.1][seq[pp.0 + 1]]
-  } else if pp.1 > three_prime_end {
+  } else if pp.1 > five_prime_end {
     CONTRA_RIGHT_DANGLE_FES[bp.0][bp.1][seq[pp.1 - 1]]
   } else {
     0.

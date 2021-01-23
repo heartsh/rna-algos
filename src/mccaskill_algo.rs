@@ -3,9 +3,11 @@ use utils::*;
 pub struct SsPartFuncMats<T: Hash> {
   pub part_func_mat: PartFuncMat,
   pub part_func_mat_4_rightmost_base_pairings: PartFuncMat,
-  pub part_func_mat_4_base_pairings: HashMap<PosPair<T>, PartFunc>,
+  pub part_func_mat_4_base_pairings: SparsePartFuncMat<T>,
+  pub part_func_mat_4_base_pairings_accessible: SparsePartFuncMat<T>,
   pub part_func_mat_4_at_least_1_base_pairings_on_mls: PartFuncMat,
 }
+
 pub struct SsPartFuncMatsContra<T: Hash> {
   pub part_func_mat: PartFuncMat,
   pub part_func_mat_4_rightmost_base_pairings_on_el: PartFuncMat,
@@ -15,6 +17,7 @@ pub struct SsPartFuncMatsContra<T: Hash> {
   pub part_func_mat_4_base_pairings_accessible_on_mls: SparsePartFuncMat<T>,
   pub part_func_mat_4_at_least_1_base_pairings_on_mls: PartFuncMat,
 }
+
 pub type FreeEnergies = Vec<FreeEnergy>;
 pub type FreeEnergyMat = Vec<FreeEnergies>;
 pub type SparseFreeEnergyMat<T> = HashMap<PosPair<T>, FreeEnergy>;
@@ -33,6 +36,7 @@ impl<T: Hash> SsPartFuncMats<T> {
       part_func_mat: vec![vec![0.; seq_len]; seq_len],
       part_func_mat_4_rightmost_base_pairings: neg_inf_mat.clone(),
       part_func_mat_4_base_pairings: SparsePartFuncMat::<T>::default(),
+      part_func_mat_4_base_pairings_accessible: SparsePartFuncMat::<T>::default(),
       part_func_mat_4_at_least_1_base_pairings_on_mls: neg_inf_mat,
     }
   }
@@ -111,30 +115,20 @@ where
             logsumexp(&mut sum, ss_part_func_4_base_pairing + twoloop_free_energy);
           }
         }
-        let invert_bp_closing_loop = invert_bp(&bp_closing_loop);
-        let invert_stacking_bp = invert_bp(&(seq[long_i + 1], seq[long_j - 1]));
-        let ml_tm_delta_fe = ML_TM_DELTA_FES[invert_bp_closing_loop.0][invert_bp_closing_loop.1][invert_stacking_bp.0][invert_stacking_bp.1];
+        let ml_closing_basepairing_fe = get_ml_closing_basepairing_fe(seq, &long_pp_closing_loop);
         for k in long_i + 1 .. long_j {
-          logsumexp(&mut sum, ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_i + 1][k - 1] + ss_part_func_mats.part_func_mat_4_rightmost_base_pairings[k][long_j - 1] + CONST_4_INIT_ML_DELTA_FE + COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE + ml_tm_delta_fe + if is_au_or_gu(&bp_closing_loop) {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.});
+          logsumexp(&mut sum, ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_i + 1][k - 1] + ss_part_func_mats.part_func_mat_4_rightmost_base_pairings[k][long_j - 1] + COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE + ml_closing_basepairing_fe);
         }
         ss_part_func_mats.part_func_mat_4_base_pairings.insert(pp_closing_loop, sum);
+        let ml_or_el_accessible_basepairing_fe = get_ml_or_el_accessible_basepairing_fe(seq, &long_pp_closing_loop, false);
+        ss_part_func_mats.part_func_mat_4_base_pairings_accessible.insert(pp_closing_loop, sum + ml_or_el_accessible_basepairing_fe);
       }
       sum = NEG_INFINITY;
       for k in range_inclusive(i + T::one(), j) {
-        let long_k = k.to_usize().unwrap();
         let accessible_pp = (i, k);
-        let accessible_bp = (seq[long_i], seq[long_k]);
-        if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&accessible_pp) {continue;}
-        let ss_part_func_4_bp = ss_part_func_mats.part_func_mat_4_base_pairings[&accessible_pp];
-        logsumexp(&mut sum, ss_part_func_4_bp + if i > T::zero() && k < seq_len - T::one() {
-          ML_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]][seq[long_k + 1]]
-        } else if i > T::zero() {
-          FIVE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]]
-        } else if k < seq_len - T::one() {
-          THREE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_k + 1]]
-        } else {
-          0.
-        } + if is_au_or_gu(&accessible_bp) {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.});
+        if !ss_part_func_mats.part_func_mat_4_base_pairings_accessible.contains_key(&accessible_pp) {continue;}
+        let ss_part_func_4_bp = ss_part_func_mats.part_func_mat_4_base_pairings_accessible[&accessible_pp];
+        logsumexp(&mut sum, ss_part_func_4_bp);
       }
       ss_part_func_mats.part_func_mat_4_rightmost_base_pairings[long_i][long_j] = sum;
       sum = 0.;
@@ -262,33 +256,22 @@ where
         if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&pp_closing_loop) {continue;}
         let ss_part_func_4_base_pairing = ss_part_func_mats.part_func_mat_4_base_pairings[&pp_closing_loop];
         let bpp = bpp_mat[&pp_closing_loop];
-        let bp_closing_loop = (seq[long_i], seq[long_k]);
-        let invert_bp_closing_loop = invert_bp(&bp_closing_loop);
-        let invert_stacking_bp = invert_bp(&(seq[long_i + 1], seq[long_k - 1]));
-        let ml_tm_delta_fe = ML_TM_DELTA_FES[invert_bp_closing_loop.0][invert_bp_closing_loop.1][invert_stacking_bp.0][invert_stacking_bp.1];
-        let coefficient = bpp + ml_tm_delta_fe + if is_au_or_gu(&bp_closing_loop) {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.} - ss_part_func_4_base_pairing;
+        let ml_closing_basepairing_fe = get_ml_closing_basepairing_fe(seq, &(long_i, long_k));
+        let coefficient = bpp + ml_closing_basepairing_fe - ss_part_func_4_base_pairing;
         logsumexp(&mut sum_1, coefficient + ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_j + 1][long_k - 1]);
         logsumexp(&mut sum_2, coefficient);
       }
       prob_mat_4_mls_1[long_i][long_j] = sum_1;
       prob_mat_4_mls_2[long_i][long_j] = sum_2;
       let accessible_pp = (i, j);
-      let accessible_bp = (seq[long_i], seq[long_j]);
       if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&accessible_pp) {continue;}
       let ss_part_func_4_base_pairing_1 = ss_part_func_mats.part_func_mat_4_base_pairings[&accessible_pp];
+      let ss_part_func_4_base_pairing_accessible = ss_part_func_mats.part_func_mat_4_base_pairings_accessible[&accessible_pp];
       let part_func_pair = (
         if accessible_pp.0 < T::one() {0.} else {ss_part_func_mats.part_func_mat[0][long_i - 1]},
         if accessible_pp.1 > short_seq_len - T::from_usize(2).unwrap() {0.} else {ss_part_func_mats.part_func_mat[long_j + 1][seq_len - 1]},
       );
-      let mut sum = part_func_pair.0 + ss_part_func_4_base_pairing_1 + part_func_pair.1 - ss_part_func + if i > T::zero() && j < short_seq_len - T::one() {
-        ML_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]][seq[long_j + 1]]
-      } else if i > T::zero() {
-        FIVE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]]
-      } else if j < short_seq_len - T::one() {
-        THREE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_j + 1]]
-      } else {
-        0.
-      } + if is_au_or_gu(&accessible_bp) {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.};
+      let mut sum = part_func_pair.0 + ss_part_func_4_base_pairing_accessible + part_func_pair.1 - ss_part_func;
       let mut bpp_4_2l = NEG_INFINITY;
       for k in range(T::zero(), i) {
         let long_k = k.to_usize().unwrap();
@@ -304,15 +287,7 @@ where
       if bpp_4_2l > NEG_INFINITY {
         logsumexp(&mut sum, bpp_4_2l);
       }
-      let coefficient = ss_part_func_4_base_pairing_1 + CONST_4_INIT_ML_DELTA_FE + COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE + if i > T::zero() && j < short_seq_len - T::one() {
-        ML_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]][seq[long_j + 1]]
-      } else if i > T::zero() {
-        FIVE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_i - 1]]
-      } else if j < short_seq_len - T::one() {
-        THREE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[long_j + 1]]
-      } else {
-        0.
-      } + if is_au_or_gu(&accessible_bp) {HELIX_AU_OR_GU_END_PENALTY_DELTA_FE} else {0.};
+      let coefficient = ss_part_func_4_base_pairing_accessible + COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE;
       let mut bpp_4_ml = NEG_INFINITY;
       for k in 0 .. long_i {
         let ss_part_func_4_at_least_1_base_pairings_on_mls = ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[k + 1][long_i - 1];
