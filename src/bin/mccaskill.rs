@@ -46,10 +46,10 @@ fn main() {
       scope.execute(move || {
         let seq_len = fasta_record.seq.len();
         if seq_len <= u8::MAX as usize {
-          let bpp_mat = mccaskill_algo::<u8>(&fasta_record.seq[..], uses_contra_model);
+          let bpp_mat = mccaskill_algo::<u8>(&fasta_record.seq[..], uses_contra_model).0;
           *bpp_mat_str = convert_bpp_mat_2_str(&bpp_mat);
         } else {
-          let bpp_mat = mccaskill_algo::<u16>(&fasta_record.seq[..], uses_contra_model);
+          let bpp_mat = mccaskill_algo::<u16>(&fasta_record.seq[..], uses_contra_model).0;
           *bpp_mat_str = convert_bpp_mat_2_str(&bpp_mat);
         }
       });

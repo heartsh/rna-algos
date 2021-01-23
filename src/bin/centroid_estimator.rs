@@ -78,7 +78,7 @@ where
     for (fasta_record, bpp_mat) in fasta_records.iter().zip(bpp_mats.iter_mut()) {
       let ref seq = fasta_record.seq;
       scope.execute(move || {
-        *bpp_mat = mccaskill_algo::<T>(seq, uses_contra_model);
+        *bpp_mat = mccaskill_algo::<T>(seq, uses_contra_model).0;
       });
     }
   });

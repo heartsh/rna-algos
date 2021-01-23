@@ -69,7 +69,7 @@ impl<T: Unsigned + PrimInt + Hash + One> SsFreeEnergyMats<T> {
   }
 }
 
-pub fn mccaskill_algo<T>(seq: SeqSlice, uses_contra_model: bool) -> SparseProbMat<T>
+pub fn mccaskill_algo<T>(seq: SeqSlice, uses_contra_model: bool) -> (SparseProbMat<T>, SsFreeEnergyMats<T>)
 where
   T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
 {
@@ -80,7 +80,7 @@ where
   } else {
     get_base_pairing_prob_mat::<T>(seq, &get_ss_part_func_mats::<T>(seq, seq_len, &mut ss_free_energy_mats), seq_len, &ss_free_energy_mats)
   };
-  bpp_mat
+  (bpp_mat, ss_free_energy_mats)
 }
 
 pub fn get_ss_part_func_mats<T>(seq: SeqSlice, seq_len: usize, ss_free_energy_mats: &mut SsFreeEnergyMats<T>) -> SsPartFuncMats<T>
