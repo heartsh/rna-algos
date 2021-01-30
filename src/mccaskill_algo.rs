@@ -167,7 +167,7 @@ where
       let long_pp_closing_loop = (long_i, long_j);
       let bp_closing_loop = (seq[long_i], seq[long_j]);
       let mut sum = NEG_INFINITY;
-      if long_pp_closing_loop.1 - long_pp_closing_loop.0 + 1 >= MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL && is_canonical(&bp_closing_loop) {
+      if long_pp_closing_loop.1 - long_pp_closing_loop.0 + 1 >= MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL {
         if long_j - long_i - 1 <= CONTRA_MAX_LOOP_LEN {
           let hl_fe = get_hl_fe_contra(seq, &long_pp_closing_loop);
           ss_free_energy_mats.hl_fe_mat.insert(pp_closing_loop, hl_fe);
