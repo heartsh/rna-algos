@@ -9,15 +9,19 @@ use time::precise_time_s;
 
 lazy_static! {
   static ref TEST_SEQ: Seq = {
-    convert(&String::from("AUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCC").into_bytes())
+    convert(&String::from("AUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCCAUGCAAGGGGGCUUUAACACAUGGGAUCC").into_bytes())
   };
   static ref TEST_SEQ_LEN: usize = {TEST_SEQ.len()};
 }
 
 #[test]
-fn test_bpp_and_upp_mats() {
+fn test_mccaskill() {
   let begin = precise_time_s();
-  let _ = get_bpp_and_unpair_prob_mats(&TEST_SEQ[..]);
+  let _ = mccaskill_algo::<u16>(&TEST_SEQ[..], false);
   let elapsed_time = precise_time_s() - begin;
-  println!("The elapsed time = {} [s].", elapsed_time);
+  println!("The elapsed time of McCaskill'a algorithm with Turner's model = {} [s].", elapsed_time);
+  let begin = precise_time_s();
+  let _ = mccaskill_algo::<u16>(&TEST_SEQ[..], true);
+  let elapsed_time = precise_time_s() - begin;
+  println!("The elapsed time of McCaskill'a algorithm with CONTRAfold model = {} [s].", elapsed_time);
 }

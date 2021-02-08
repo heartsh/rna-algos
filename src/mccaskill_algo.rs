@@ -69,6 +69,8 @@ impl<T: Unsigned + PrimInt + Hash + One> SsFreeEnergyMats<T> {
   }
 }
 
+pub const LOGSUMEXP_THRES_UPPER: FreeEnergy = 11.8624794162;
+
 pub fn mccaskill_algo<T>(seq: SeqSlice, uses_contra_model: bool) -> (SparseProbMat<T>, SsFreeEnergyMats<T>)
 where
   T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
@@ -103,9 +105,10 @@ where
         logsumexp(&mut sum, hl_fe);
         for k in range(i + T::one(), j - T::one()) {
           let long_k = k.to_usize().unwrap();
-          for l in range(k + T::one(), j) {
+          if long_k - long_i - 1 > MAX_2_LOOP_LEN {break;}
+          for l in range(k + T::one(), j).rev() {
             let long_l = l.to_usize().unwrap();
-            if long_j - long_l - 1 + long_k - long_i - 1 > MAX_2_LOOP_LEN {continue;}
+            if long_j - long_l - 1 + long_k - long_i - 1 > MAX_2_LOOP_LEN {break;}
             let accessible_pp = (k, l);
             let long_accessible_pp = (long_k, long_l);
             if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&accessible_pp) {continue;}
@@ -175,9 +178,10 @@ where
         }
         for k in range(i + T::one(), j - T::one()) {
           let long_k = k.to_usize().unwrap();
-          for l in range(k + T::one(), j) {
+          if long_k - long_i - 1 > MAX_2_LOOP_LEN {break;}
+          for l in range(k + T::one(), j).rev() {
             let long_l = l.to_usize().unwrap();
-            if long_j - long_l - 1 + long_k - long_i - 1 > CONTRA_MAX_LOOP_LEN {continue;}
+            if long_j - long_l - 1 + long_k - long_i - 1 > CONTRA_MAX_LOOP_LEN {break;}
             let accessible_pp = (k, l);
             let long_accessible_pp = (long_k, long_l);
             match ss_part_func_mats.part_func_mat_4_base_pairings.get(&accessible_pp) {
@@ -272,38 +276,31 @@ where
         if accessible_pp.1 > short_seq_len - T::from_usize(2).unwrap() {0.} else {ss_part_func_mats.part_func_mat[long_j + 1][seq_len - 1]},
       );
       let mut sum = part_func_pair.0 + ss_part_func_4_base_pairing_accessible + part_func_pair.1 - ss_part_func;
-      let mut bpp_4_2l = NEG_INFINITY;
-      for k in range(T::zero(), i) {
+      for k in range(T::zero(), i).rev() {
         let long_k = k.to_usize().unwrap();
+        if long_i - long_k - 1 > MAX_2_LOOP_LEN {break;}
         for l in range(j + T::one(), short_seq_len) {
           let long_l = l.to_usize().unwrap();
-          if long_l - long_j - 1 + long_i - long_k - 1 > MAX_2_LOOP_LEN {continue;}
+          if long_l - long_j - 1 + long_i - long_k - 1 > MAX_2_LOOP_LEN {break;}
           let pp_closing_loop = (k, l);
           if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&pp_closing_loop) {continue;}
           let ss_part_func_4_base_pairing_2 = ss_part_func_mats.part_func_mat_4_base_pairings[&pp_closing_loop];
-          logsumexp(&mut bpp_4_2l, bpp_mat[&pp_closing_loop] + ss_part_func_4_base_pairing_1 - ss_part_func_4_base_pairing_2 + ss_free_energy_mats.twoloop_fe_4d_mat[&(k, l, i, j)]);
+          logsumexp(&mut sum, bpp_mat[&pp_closing_loop] + ss_part_func_4_base_pairing_1 - ss_part_func_4_base_pairing_2 + ss_free_energy_mats.twoloop_fe_4d_mat[&(k, l, i, j)]);
         }
       }
-      if bpp_4_2l > NEG_INFINITY {
-        logsumexp(&mut sum, bpp_4_2l);
-      }
       let coefficient = ss_part_func_4_base_pairing_accessible + COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE;
-      let mut bpp_4_ml = NEG_INFINITY;
       for k in 0 .. long_i {
         let ss_part_func_4_at_least_1_base_pairings_on_mls = ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[k + 1][long_i - 1];
-        logsumexp(&mut bpp_4_ml, coefficient + prob_mat_4_mls_2[k][long_j] + ss_part_func_4_at_least_1_base_pairings_on_mls);
+        logsumexp(&mut sum, coefficient + prob_mat_4_mls_2[k][long_j] + ss_part_func_4_at_least_1_base_pairings_on_mls);
         let prob_4_mls = prob_mat_4_mls_1[k][long_j];
-        logsumexp(&mut bpp_4_ml, coefficient + prob_4_mls);
-        logsumexp(&mut bpp_4_ml, coefficient + prob_4_mls + ss_part_func_4_at_least_1_base_pairings_on_mls);
-      }
-      if bpp_4_ml > NEG_INFINITY {
-        logsumexp(&mut sum, bpp_4_ml);
+        logsumexp(&mut sum, coefficient + prob_4_mls);
+        logsumexp(&mut sum, coefficient + prob_4_mls + ss_part_func_4_at_least_1_base_pairings_on_mls);
       }
       debug_assert!(NEG_INFINITY <= sum && sum <= 0.);
       bpp_mat.insert(accessible_pp, sum);
     }
   }
-  bpp_mat = bpp_mat.iter().map(|(pos_pair, &bpp)| {(*pos_pair, bpp.exp())}).collect();
+  bpp_mat = bpp_mat.iter().map(|(pos_pair, &bpp)| {(*pos_pair, expf(bpp))}).collect();
   bpp_mat
 }
 
@@ -345,34 +342,27 @@ where
             if accessible_pp.1 > short_seq_len - T::from_usize(2).unwrap() {0.} else {ss_part_func_mats.part_func_mat[long_j + 1][seq_len - 1]},
           );
           let mut sum = part_func_pair.0 + part_func_pair.1 + ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_el[&accessible_pp] - ss_part_func;
-          let mut bpp_4_2l = NEG_INFINITY;
-          for k in range(T::zero(), i) {
+          for k in range(T::zero(), i).rev() {
             let long_k = k.to_usize().unwrap();
+            if long_i - long_k - 1 > MAX_2_LOOP_LEN {break;}
             for l in range(j + T::one(), short_seq_len) {
               let long_l = l.to_usize().unwrap();
-              if long_l - long_j - 1 + long_i - long_k - 1 > CONTRA_MAX_LOOP_LEN {continue;}
+              if long_l - long_j - 1 + long_i - long_k - 1 > CONTRA_MAX_LOOP_LEN {break;}
               let pp_closing_loop = (k, l);
               match ss_part_func_mats.part_func_mat_4_base_pairings.get(&pp_closing_loop) {
                 Some(&part_func_2) => {
-                  logsumexp(&mut bpp_4_2l, bpp_mat[&pp_closing_loop] + part_func - part_func_2 + ss_free_energy_mats.twoloop_fe_4d_mat[&(k, l, i, j)]);
+                  logsumexp(&mut sum, bpp_mat[&pp_closing_loop] + part_func - part_func_2 + ss_free_energy_mats.twoloop_fe_4d_mat[&(k, l, i, j)]);
                 }, None => {},
               }
             }
           }
-          if bpp_4_2l > NEG_INFINITY {
-            logsumexp(&mut sum, bpp_4_2l);
-          }
           let coefficient = ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_mls[&accessible_pp];
-          let mut bpp_4_ml = NEG_INFINITY;
           for k in 0 .. long_i {
             let ss_part_func_4_at_least_1_base_pairings_on_mls = ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[k + 1][long_i - 1];
-            logsumexp(&mut bpp_4_ml, coefficient + prob_mat_4_mls_2[k][long_j] + ss_part_func_4_at_least_1_base_pairings_on_mls);
+            logsumexp(&mut sum, coefficient + prob_mat_4_mls_2[k][long_j] + ss_part_func_4_at_least_1_base_pairings_on_mls);
             let prob_4_mls = prob_mat_4_mls_1[k][long_j];
-            logsumexp(&mut bpp_4_ml, coefficient + prob_4_mls + CONTRA_ML_UNPAIRED_FE * (long_i - k - 1) as FreeEnergy);
-            logsumexp(&mut bpp_4_ml, coefficient + prob_4_mls + ss_part_func_4_at_least_1_base_pairings_on_mls);
-          }
-          if bpp_4_ml > NEG_INFINITY {
-            logsumexp(&mut sum, bpp_4_ml);
+            logsumexp(&mut sum, coefficient + prob_4_mls + CONTRA_ML_UNPAIRED_FE * (long_i - k - 1) as FreeEnergy);
+            logsumexp(&mut sum, coefficient + prob_4_mls + ss_part_func_4_at_least_1_base_pairings_on_mls);
           }
           debug_assert!(NEG_INFINITY <= sum && sum <= 0.);
           bpp_mat.insert(accessible_pp, sum);
@@ -380,15 +370,82 @@ where
       }
     }
   }
-  bpp_mat = bpp_mat.iter().map(|(pos_pair, &bpp)| {(*pos_pair, bpp.exp())}).collect();
+  bpp_mat = bpp_mat.iter().map(|(pos_pair, &bpp)| {(*pos_pair, expf(bpp))}).collect();
   bpp_mat
 }
 
+#[inline]
 pub fn logsumexp(sum: &mut FreeEnergy, new_term: FreeEnergy) {
+  if !new_term.is_finite() {
+    return;
+  }
   *sum = if !sum.is_finite() {
-   new_term
+    new_term
   } else {
     let max = sum.max(new_term);
-    max + ((if *sum == max {new_term - max} else {*sum - max}).exp() + 1.).ln()
+    let min = sum.min(new_term);
+    let diff = max - min;
+    min + if diff >= LOGSUMEXP_THRES_UPPER {
+      diff
+    } else {
+      // diff.exp().ln_1p()
+      ln_exp_1p(diff)
+    }
   };
+}
+
+// Approximated (x.exp() + 1).ln() from CONTRAfold, eliminating ln() and exp() (assuming 0 <= x <= LOGSUMEXP_THRES_UPPER)
+#[inline]
+pub fn ln_exp_1p(x: FreeEnergy) -> FreeEnergy {
+  if x < 3.3792499610 {
+    if x < 1.6320158198 {
+      if x < 0.6615367791 {
+        ((-0.0065591595 * x + 0.1276442762) * x + 0.4996554598) * x + 0.6931542306
+      } else {
+        ((-0.0155157557 * x + 0.1446775699) * x + 0.4882939746) * x + 0.6958092989
+      }
+    } else if x < 2.4912588184 {
+      ((-0.0128909247 * x + 0.1301028251) * x + 0.5150398748) * x + 0.6795585882
+    } else {
+      ((-0.0072142647 * x + 0.0877540853) * x + 0.6208708362) * x + 0.5909675829
+    }
+  } else if x < 5.7890710412 {
+    if x < 4.4261691294 {
+      ((-0.0031455354 * x + 0.0467229449) * x + 0.7592532310) * x + 0.4348794399
+    } else {
+      ((-0.0010110698 * x + 0.0185943421) * x + 0.8831730747) * x + 0.2523695427
+    }
+  } else if x < 7.8162726752 {
+    ((-0.0001962780 * x + 0.0046084408) * x + 0.9634431978) * x + 0.0983148903
+  } else {
+    ((-0.0000113994 * x + 0.0003734731) * x + 0.9959107193) * x + 0.0149855051
+  }
+}
+
+// Approximated x.exp() from CONTRAfold
+#[inline]
+pub fn expf(x: FreeEnergy) -> FreeEnergy {
+  if x < -2.4915033807 {
+    if x < -5.8622823336 {
+      if x < -9.91152 {
+        0.
+      } else {
+        ((0.0000803850 * x + 0.0021627428) * x + 0.0194708555) * x + 0.0588080014
+      }
+    } else if x < -3.8396630909 {
+      ((0.0013889414 * x + 0.0244676474) * x + 0.1471290604) * x + 0.3042757740
+    } else {
+      ((0.0072335607 * x + 0.0906002677) * x + 0.3983111356) * x + 0.6245959221
+    }
+  } else if x < -0.6725053211 {
+    if x < -1.4805375919 {
+      ((0.0232410351 * x + 0.2085645908) * x + 0.6906367911) * x + 0.8682322329
+    } else {
+      ((0.0573782771 * x + 0.3580258429) * x + 0.9121133217) * x + 0.9793091728
+    }
+  } else if x < 0. {
+    ((0.1199175927 * x + 0.4815668234) * x + 0.9975991939) * x + 0.9999505077
+  } else {
+    x.exp()
+  }
 }
