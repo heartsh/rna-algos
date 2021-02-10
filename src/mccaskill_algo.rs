@@ -18,10 +18,6 @@ pub struct SsPartFuncMatsContra<T: Hash> {
   pub part_func_mat_4_at_least_1_base_pairings_on_mls: PartFuncMat,
 }
 
-pub type FreeEnergies = Vec<FreeEnergy>;
-pub type FreeEnergyMat = Vec<FreeEnergies>;
-pub type SparseFreeEnergyMat<T> = HashMap<PosPair<T>, FreeEnergy>;
-pub type SparsePartFuncMat<T> = HashMap<PosPair<T>, PartFunc>;
 #[derive(Clone)]
 pub struct SsFreeEnergyMats<T: Hash> {
   pub hl_fe_mat: HashMap<PosPair<T>, FreeEnergy>,
@@ -68,8 +64,6 @@ impl<T: Unsigned + PrimInt + Hash + One> SsFreeEnergyMats<T> {
     }
   }
 }
-
-pub const LOGSUMEXP_THRES_UPPER: FreeEnergy = 11.8624794162;
 
 pub fn mccaskill_algo<T>(seq: SeqSlice, uses_contra_model: bool) -> (SparseProbMat<T>, SsFreeEnergyMats<T>)
 where
@@ -372,80 +366,4 @@ where
   }
   bpp_mat = bpp_mat.iter().map(|(pos_pair, &bpp)| {(*pos_pair, expf(bpp))}).collect();
   bpp_mat
-}
-
-#[inline]
-pub fn logsumexp(sum: &mut FreeEnergy, new_term: FreeEnergy) {
-  if !new_term.is_finite() {
-    return;
-  }
-  *sum = if !sum.is_finite() {
-    new_term
-  } else {
-    let max = sum.max(new_term);
-    let min = sum.min(new_term);
-    let diff = max - min;
-    min + if diff >= LOGSUMEXP_THRES_UPPER {
-      diff
-    } else {
-      // diff.exp().ln_1p()
-      ln_exp_1p(diff)
-    }
-  };
-}
-
-// Approximated (x.exp() + 1).ln() from CONTRAfold, eliminating ln() and exp() (assuming 0 <= x <= LOGSUMEXP_THRES_UPPER)
-#[inline]
-pub fn ln_exp_1p(x: FreeEnergy) -> FreeEnergy {
-  if x < 3.3792499610 {
-    if x < 1.6320158198 {
-      if x < 0.6615367791 {
-        ((-0.0065591595 * x + 0.1276442762) * x + 0.4996554598) * x + 0.6931542306
-      } else {
-        ((-0.0155157557 * x + 0.1446775699) * x + 0.4882939746) * x + 0.6958092989
-      }
-    } else if x < 2.4912588184 {
-      ((-0.0128909247 * x + 0.1301028251) * x + 0.5150398748) * x + 0.6795585882
-    } else {
-      ((-0.0072142647 * x + 0.0877540853) * x + 0.6208708362) * x + 0.5909675829
-    }
-  } else if x < 5.7890710412 {
-    if x < 4.4261691294 {
-      ((-0.0031455354 * x + 0.0467229449) * x + 0.7592532310) * x + 0.4348794399
-    } else {
-      ((-0.0010110698 * x + 0.0185943421) * x + 0.8831730747) * x + 0.2523695427
-    }
-  } else if x < 7.8162726752 {
-    ((-0.0001962780 * x + 0.0046084408) * x + 0.9634431978) * x + 0.0983148903
-  } else {
-    ((-0.0000113994 * x + 0.0003734731) * x + 0.9959107193) * x + 0.0149855051
-  }
-}
-
-// Approximated x.exp() from CONTRAfold
-#[inline]
-pub fn expf(x: FreeEnergy) -> FreeEnergy {
-  if x < -2.4915033807 {
-    if x < -5.8622823336 {
-      if x < -9.91152 {
-        0.
-      } else {
-        ((0.0000803850 * x + 0.0021627428) * x + 0.0194708555) * x + 0.0588080014
-      }
-    } else if x < -3.8396630909 {
-      ((0.0013889414 * x + 0.0244676474) * x + 0.1471290604) * x + 0.3042757740
-    } else {
-      ((0.0072335607 * x + 0.0906002677) * x + 0.3983111356) * x + 0.6245959221
-    }
-  } else if x < -0.6725053211 {
-    if x < -1.4805375919 {
-      ((0.0232410351 * x + 0.2085645908) * x + 0.6906367911) * x + 0.8682322329
-    } else {
-      ((0.0573782771 * x + 0.3580258429) * x + 0.9121133217) * x + 0.9793091728
-    }
-  } else if x < 0. {
-    ((0.1199175927 * x + 0.4815668234) * x + 0.9975991939) * x + 0.9999505077
-  } else {
-    x.exp()
-  }
 }

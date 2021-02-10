@@ -55,7 +55,7 @@ fn main() {
       });
     }
   });
-  let mut buf_4_writer_2_bpp_mat_file = format!("; The path to the input file in order to compute the base-pairing Probability matrices on secondary structure in this file = \"{}\".\n; The values of the parameters used in order to compute the matrices are as follows.\n; \"num_of_threads\" = {}.", input_file_path.display(), num_of_threads) + "\n; Each row beginning with \">\" is with the ID of an RNA sequence. The next row to the row is with the base-pairing probability matrix on secondary structure of the sequence.";
+  let mut buf_4_writer_2_bpp_mat_file = format!("# Format = >{{RNA sequence id}} {{line break}} {{basepairing left nucleotide}}, {{basepairing right nucleotide}}, {{basepairing probability}} ...");
   let mut writer_2_bpp_mat_file = BufWriter::new(File::create(output_file_path).unwrap());
   for (rna_id, bpp_mat_str) in bpp_mat_strs.iter().enumerate() {
     let mut buf_4_rna_id = format!("\n\n>{}\n", rna_id);

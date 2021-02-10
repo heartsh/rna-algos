@@ -1,6 +1,5 @@
 use utils::*;
 
-pub type Mea = Prob;
 #[derive(Clone)]
 pub struct MeaSs<T> {
   pub bp_pos_pairs: PosPairs<T>,
@@ -10,10 +9,7 @@ pub type Meas = Vec<Mea>;
 pub type MeaMat<T> = HashMap<PosPair<T>, Mea>;
 pub type Poss<T> = Vec<T>;
 pub type PosSeqsWithPoss<T> = HashMap<T, Poss<T>>;
-pub type PosPairs<T> = Vec<PosPair<T>>;
 pub type PosPairSeqsWithPosPairs<T> = HashMap<PosPair<T>, PosPairs<T>>;
-pub type MeaSsChar = u8;
-pub type MeaSsStr = Vec<MeaSsChar>;
 
 impl<T> MeaSs<T> {
   pub fn new() -> MeaSs<T> {
@@ -23,10 +19,6 @@ impl<T> MeaSs<T> {
     }
   }
 }
-
-pub const UNPAIRING_BASE: MeaSsChar = '.' as MeaSsChar;
-pub const BASE_PAIRING_LEFT_BASE: MeaSsChar = '(' as MeaSsChar;
-pub const BASE_PAIRING_RIGHT_BASE: MeaSsChar = ')' as MeaSsChar;
 
 pub fn centroid_estimator<T: Hash>(bpp_mat: &SparseProbMat<T>, seq_len: usize, gamma: Prob) -> MeaSs<T>
 where

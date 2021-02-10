@@ -15,6 +15,7 @@ pub use bio::io::fasta::Reader;
 pub use std::io::BufWriter;
 pub use std::fs::File;
 pub use std::fs::create_dir;
+pub use std::f32::consts::LOG2_E;
 
 pub type PosPair<T> = (T, T);
 pub type PosQuadruple<T> = (T, T, T, T);
@@ -28,10 +29,32 @@ pub struct FastaRecord {
   pub fasta_id: FastaId,
   pub seq: Seq,
 }
+#[derive(Debug)]
+pub struct SeqAlign<T> {
+  pub cols: Cols,
+  pub pos_map_sets: PosMapSets<T>,
+}
+pub type PosMaps<T> = Vec<T>;
+pub type PosMapSets<T> = Vec<PosMaps<T>>;
 pub type FastaRecords = Vec<FastaRecord>;
 pub type SeqSlice<'a> = &'a[Base];
 pub type NumOfThreads = u32;
 pub type SparseProbMat<T> = HashMap<PosPair<T>, Prob>;
+pub type BaScoreMat = HashMap<BasePair, FreeEnergy>;
+pub type BpaScoreMat = HashMap<(BasePair, BasePair), FreeEnergy>;
+pub type SeqId = String;
+pub type SeqIds = Vec<SeqId>;
+pub type Col = Vec<Base>;
+pub type Cols = Vec<Col>;
+pub type PartFunc4dMat<T> = HashMap<PosQuadruple<T>, PartFunc>;
+pub type SparsePartFuncMat<T> = HashMap<PosPair<T>, PartFunc>;
+pub type FreeEnergies = Vec<FreeEnergy>;
+pub type FreeEnergyMat = Vec<FreeEnergies>;
+pub type SparseFreeEnergyMat<T> = HashMap<PosPair<T>, FreeEnergy>;
+pub type PosPairs<T> = Vec<PosPair<T>>;
+pub type Mea = Prob;
+pub type MeaSsChar = u8;
+pub type MeaSsStr = Vec<MeaSsChar>;
 
 pub const MAX_SPAN_OF_INDEX_PAIR_CLOSING_IL: usize = MAX_2_LOOP_LEN + 2;
 pub const MIN_SPAN_OF_INDEX_PAIR_CLOSING_ML: usize = MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL * 2 + 2;
@@ -43,12 +66,53 @@ pub const SMALL_G: u8 = 'g' as u8;
 pub const BIG_G: u8 = 'G' as u8;
 pub const SMALL_U: u8 = 'u' as u8;
 pub const BIG_U: u8 = 'U' as u8;
+pub const LOGSUMEXP_THRES_UPPER: FreeEnergy = 11.8624794162;
+pub const PSEUDO_BASE: Base = U + 1 as Base;
+pub const UNPAIRING_BASE: MeaSsChar = '.' as MeaSsChar;
+pub const BASE_PAIRING_LEFT_BASE: MeaSsChar = '(' as MeaSsChar;
+pub const BASE_PAIRING_RIGHT_BASE: MeaSsChar = ')' as MeaSsChar;
+
+lazy_static! {
+  pub static ref RIBOSUM_BA_SCORE_MAT: BaScoreMat = {
+    [
+      (AA, 2.22), (AC, -1.86), (AG, -1.46), (AU, -1.39),
+      (CA, -1.86), (CC, 1.16), (CG, -2.48), (CU, -1.05),
+      (GA, -1.46), (GC, -2.48), (GG, 1.03), (GU, -1.74),
+      (UA, -1.39), (UC, -1.05), (UG, -1.74), (UU, 1.65),
+    ].iter().map(|(base_pair, ba_score)| {(*base_pair, ba_score / LOG2_E)}).collect()
+  };
+  pub static ref RIBOSUM_BPA_SCORE_MAT: BpaScoreMat = {
+    [
+      ((AU, AU), 4.49), ((AU, CG), 1.67), ((AU, GC), 2.70), ((AU, GU), 0.59), ((AU, UA), 1.61), ((AU, UG), -0.51),
+      ((CG, AU), 1.67), ((CG, CG), 5.36), ((CG, GC), 2.11), ((CG, GU), -0.27), ((CG, UA), 2.75), ((CG, UG), 1.32),
+      ((GC, AU), 2.70), ((GC, CG), 2.11), ((GC, GC), 5.62), ((GC, GU), 1.21), ((GC, UA), 1.6), ((GC, UG), -0.08),
+      ((GU, AU), 0.59), ((GU, CG), -0.27), ((GU, GC), 1.21), ((GU, GU), 3.47), ((GU, UA), -0.57), ((GU, UG), -2.09),
+      ((UA, AU), 1.61), ((UA, CG), 2.75), ((UA, GC), 1.6), ((UA, GU), -0.57), ((UA, UA), 4.97), ((UA, UG), 1.14),
+      ((UG, AU), -0.51), ((UG, CG), 1.32), ((UG, GC), -0.08), ((UG, GU), -2.09), ((UG, UA), 1.14), ((UG, UG), 3.36),
+    ].iter().map(|(base_quadruple, bpa_score)| {(*base_quadruple, bpa_score / LOG2_E)}).collect()
+  };
+}
 
 impl FastaRecord {
+  pub fn origin() -> FastaRecord {
+    FastaRecord {
+      fasta_id: FastaId::new(),
+      seq: Seq::new(),
+    }
+  }
   pub fn new(fasta_id: FastaId, seq: Seq) -> FastaRecord {
     FastaRecord {
       fasta_id: fasta_id,
       seq: seq,
+    }
+  }
+}
+
+impl<T> SeqAlign<T> {
+  pub fn new() -> SeqAlign<T> {
+    SeqAlign {
+      cols: Cols::new(),
+      pos_map_sets: PosMapSets::<T>::new(),
     }
   }
 }
@@ -330,4 +394,127 @@ pub fn convert<'a>(seq: &'a [u8]) -> Seq {
     new_seq.push(new_base);
   }
   new_seq
+}
+
+#[inline]
+pub fn logsumexp(sum: &mut FreeEnergy, new_term: FreeEnergy) {
+  if !new_term.is_finite() {
+    return;
+  }
+  *sum = if !sum.is_finite() {
+    new_term
+  } else {
+    let max = sum.max(new_term);
+    let min = sum.min(new_term);
+    let diff = max - min;
+    min + if diff >= LOGSUMEXP_THRES_UPPER {
+      diff
+    } else {
+      // diff.exp().ln_1p()
+      ln_exp_1p(diff)
+    }
+  };
+}
+
+// Approximated (x.exp() + 1).ln() from CONTRAfold, eliminating ln() and exp() (assuming 0 <= x <= LOGSUMEXP_THRES_UPPER)
+#[inline]
+pub fn ln_exp_1p(x: FreeEnergy) -> FreeEnergy {
+  if x < 3.3792499610 {
+    if x < 1.6320158198 {
+      if x < 0.6615367791 {
+        ((-0.0065591595 * x + 0.1276442762) * x + 0.4996554598) * x + 0.6931542306
+      } else {
+        ((-0.0155157557 * x + 0.1446775699) * x + 0.4882939746) * x + 0.6958092989
+      }
+    } else if x < 2.4912588184 {
+      ((-0.0128909247 * x + 0.1301028251) * x + 0.5150398748) * x + 0.6795585882
+    } else {
+      ((-0.0072142647 * x + 0.0877540853) * x + 0.6208708362) * x + 0.5909675829
+    }
+  } else if x < 5.7890710412 {
+    if x < 4.4261691294 {
+      ((-0.0031455354 * x + 0.0467229449) * x + 0.7592532310) * x + 0.4348794399
+    } else {
+      ((-0.0010110698 * x + 0.0185943421) * x + 0.8831730747) * x + 0.2523695427
+    }
+  } else if x < 7.8162726752 {
+    ((-0.0001962780 * x + 0.0046084408) * x + 0.9634431978) * x + 0.0983148903
+  } else {
+    ((-0.0000113994 * x + 0.0003734731) * x + 0.9959107193) * x + 0.0149855051
+  }
+}
+
+// Approximated x.exp() from CONTRAfold
+#[inline]
+pub fn expf(x: FreeEnergy) -> FreeEnergy {
+  if x < -2.4915033807 {
+    if x < -5.8622823336 {
+      if x < -9.91152 {
+        0.
+      } else {
+        ((0.0000803850 * x + 0.0021627428) * x + 0.0194708555) * x + 0.0588080014
+      }
+    } else if x < -3.8396630909 {
+      ((0.0013889414 * x + 0.0244676474) * x + 0.1471290604) * x + 0.3042757740
+    } else {
+      ((0.0072335607 * x + 0.0906002677) * x + 0.3983111356) * x + 0.6245959221
+    }
+  } else if x < -0.6725053211 {
+    if x < -1.4805375919 {
+      ((0.0232410351 * x + 0.2085645908) * x + 0.6906367911) * x + 0.8682322329
+    } else {
+      ((0.0573782771 * x + 0.3580258429) * x + 0.9121133217) * x + 0.9793091728
+    }
+  } else if x < 0. {
+    ((0.1199175927 * x + 0.4815668234) * x + 0.9975991939) * x + 0.9999505077
+  } else {
+    x.exp()
+  }
+}
+
+pub fn read_sa_from_clustal_file(clustal_file_path: &Path) -> (Cols, SeqIds) {
+  let mut cols = Cols::new();
+  let mut seq_ids = SeqIds::new();
+  let reader_2_clustal_file = BufReader::new(File::open(clustal_file_path).unwrap());
+  let mut seq_pointer = 0;
+  let mut pos_pointer = 0;
+  let mut are_seq_ids_read = false;
+  for (i, string) in reader_2_clustal_file.lines().enumerate() {
+    let string = string.unwrap();
+    if i == 0 || string.len() == 0 || string.starts_with(" ") {
+      if cols.len() > 0 {
+        seq_pointer = 0;
+        pos_pointer = cols.len();
+        are_seq_ids_read = true;
+      }
+      continue;
+    }
+    let mut substrings = string.split_whitespace();
+    let substring = substrings.next().unwrap();
+    if !are_seq_ids_read {
+      seq_ids.push(String::from(substring));
+    }
+    let substring = substrings.next().unwrap();
+    if seq_pointer == 0 {
+      for sa_char in substring.chars() {
+        cols.push(vec![convert_sa_char(sa_char as u8)]);
+      }
+      seq_pointer += 1;
+    } else {
+      for (j, sa_char) in substring.chars().enumerate() {
+        cols[pos_pointer + j].push(convert_sa_char(sa_char as u8));
+      }
+    }
+  }
+  (cols, seq_ids)
+}
+
+pub fn convert_sa_char(c: u8) -> Base {
+  match c {
+    SMALL_A | BIG_A => A,
+    SMALL_C | BIG_C => C,
+    SMALL_G | BIG_G => G,
+    SMALL_U | BIG_U => U,
+    _ => {PSEUDO_BASE},
+  }
 }

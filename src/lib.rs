@@ -6,6 +6,8 @@ extern crate num;
 extern crate scoped_threadpool;
 extern crate bio;
 extern crate num_cpus;
+#[macro_use]
+extern crate lazy_static;
 
 pub mod utils;
 pub mod mccaskill_algo;
