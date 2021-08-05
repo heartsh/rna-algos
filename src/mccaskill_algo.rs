@@ -28,7 +28,7 @@ pub struct SsFreeEnergyMats<T: Hash> {
 pub type FreeEnergy4dMat<T> = HashMap<PosQuadruple<T>, FreeEnergy>;
 
 impl<T: Hash> SsPartFuncMats<T> {
-  fn new(seq_len: usize) -> SsPartFuncMats<T> {
+  pub fn new(seq_len: usize) -> SsPartFuncMats<T> {
     let neg_inf_mat = vec![vec![NEG_INFINITY; seq_len]; seq_len];
     SsPartFuncMats {
       part_func_mat: vec![vec![0.; seq_len]; seq_len],
@@ -41,7 +41,7 @@ impl<T: Hash> SsPartFuncMats<T> {
 }
 
 impl<T: Hash + Clone> SsPartFuncMatsContra<T> {
-  fn new(seq_len: usize) -> SsPartFuncMatsContra<T> {
+  pub fn new(seq_len: usize) -> SsPartFuncMatsContra<T> {
     let neg_inf_mat = vec![vec![NEG_INFINITY; seq_len]; seq_len];
     let part_func_mat = SparsePartFuncMat::<T>::default();
     SsPartFuncMatsContra {
