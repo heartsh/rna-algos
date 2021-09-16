@@ -488,6 +488,56 @@ pub fn read_sa_from_clustal_file(clustal_file_path: &Path) -> (Cols, SeqIds) {
   (cols, seq_ids)
 }
 
+pub fn read_sa_from_fasta_file(fasta_file_path: &Path) -> (Cols, SeqIds) {
+  let mut cols = Cols::new();
+  let mut seq_ids = SeqIds::new();
+  let reader_2_fasta_file = BufReader::new(File::open(fasta_file_path).unwrap());
+  let mut seqs = Vec::<Seq>::new();
+  for (i, string) in reader_2_fasta_file.split(b'>').enumerate() {
+    let string = String::from_utf8(string.unwrap()).unwrap();
+    if i == 0 {continue;}
+    let substrings: Vec<&str> = string.split_whitespace().collect();
+    let seq_id = substrings[0];
+    seq_ids.push(SeqId::from(seq_id));
+    let seq = substrings[1 ..].join("");
+    let seq = seq.chars().map(|x| convert_sa_char(x as u8)).collect();
+    seqs.push(seq);
+  }
+  let align_len = seqs[0].len();
+  for i in 0 .. align_len {
+    let col = seqs.iter().map(|x| x[i]).collect();
+    cols.push(col);
+  }
+  (cols, seq_ids)
+}
+
+pub fn read_sa_from_stockholm_file(stockholm_file_path: &Path) -> (Cols, SeqIds) {
+  let mut cols = Cols::new();
+  let mut seq_ids = SeqIds::new();
+  let reader_2_stockholm_file = BufReader::new(File::open(stockholm_file_path).unwrap());
+  let mut seqs = Vec::<Seq>::new();
+  for string in reader_2_stockholm_file.lines() {
+    let string = string.unwrap();
+    if string.len() == 0 || string.starts_with("#") {
+      continue;
+    } else if string.starts_with("//") {
+      break;
+    }
+    let substrings: Vec<&str> = string.split_whitespace().collect();
+    let seq_id = substrings[0];
+    seq_ids.push(SeqId::from(seq_id));
+    let seq = substrings[1];
+    let seq = seq.chars().map(|x| convert_sa_char(x as u8)).collect();
+    seqs.push(seq);
+  }
+  let align_len = seqs[0].len();
+  for i in 0 .. align_len {
+    let col = seqs.iter().map(|x| x[i]).collect();
+    cols.push(col);
+  }
+  (cols, seq_ids)
+}
+
 pub fn convert_sa_char(c: u8) -> Base {
   match c {
     SMALL_A | BIG_A => A,
