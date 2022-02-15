@@ -8,10 +8,10 @@ fn main() {
   let args = env::args().collect::<Args>();
   let program_name = args[0].clone();
   let mut opts = Options::new();
-  opts.reqopt("i", "input_file_path", "The path to an input FASTA file containing RNA sequences", "STR");
-  opts.reqopt("o", "output_file_path", "The path to an output file", "STR");
+  opts.reqopt("i", "input_file_path", "An input FASTA file path containing RNA sequences", "STR");
+  opts.reqopt("o", "output_file_path", "An output file path", "STR");
   opts.optopt("t", "num_of_threads", "The number of threads in multithreading (Uses the number of the threads of this computer by default)", "UINT");
-  opts.optflag("c", "uses_contra_model", "Use CONTRAfold model instead of Turner's model to score RNA secondary structures");
+  opts.optflag("c", "uses_contra_model", "Use the CONTRAfold model instead of Turner's model to score RNA secondary structures");
   opts.optflag("h", "help", "Print a help menu");
   let matches = match opts.parse(&args[1 ..]) {
     Ok(opt) => {opt}

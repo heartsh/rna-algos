@@ -6,19 +6,19 @@ use rna_algos::utils::*;
 
 pub type SparseProbMats<T> = Vec<SparseProbMat<T>>;
 
-const DEFAULT_MIN_POW_OF_2: i32 = -7;
-const DEFAULT_MAX_POW_OF_2: i32 = 10;
+const MIN_POW_OF_2: i32 = -7;
+const MAX_POW_OF_2: i32 = 10;
+const DEFAULT_GAMMA: Prob = NEG_INFINITY;
 
 fn main() {
   let args = env::args().collect::<Args>();
   let program_name = args[0].clone();
   let mut opts = Options::new();
-  opts.reqopt("i", "input_file_path", "The path to an input FASTA file containing RNA sequences", "STR");
-  opts.reqopt("o", "output_dir_path", "The path to an output directory", "STR");
-  opts.optopt("", "min_pow_of_2", &format!("A minimum power of 2 to calculate a gamma parameter (Uses {} by default)", DEFAULT_MIN_POW_OF_2), "FLOAT");
-  opts.optopt("", "max_pow_of_2", &format!("A maximum power of 2 to calculate a gamma parameter (Uses {} by default)", DEFAULT_MAX_POW_OF_2), "FLOAT");
+  opts.reqopt("i", "input_file_path", "An input FASTA file path containing RNA sequences", "STR");
+  opts.reqopt("o", "output_dir_path", "An output directory path", "STR");
+  opts.optopt("g", "gamma", "A specific gamma parameter rather than a range of gamma parameters", "FLOAT");
   opts.optopt("t", "num_of_threads", "The number of threads in multithreading (Uses the number of the threads of this computer by default)", "UINT");
-  opts.optflag("c", "uses_contra_model", "Use CONTRAfold model instead of Turner's model to score RNA secondary structures");
+  opts.optflag("c", "uses_contra_model", "Use the CONTRAfold model instead of Turner's model to score RNA secondary structures");
   opts.optflag("h", "help", "Print a help menu");
   let matches = match opts.parse(&args[1 ..]) {
     Ok(opt) => {opt}
@@ -32,20 +32,15 @@ fn main() {
   let input_file_path = Path::new(&input_file_path);
   let output_dir_path = matches.opt_str("o").unwrap();
   let output_dir_path = Path::new(&output_dir_path);
+  let gamma = if matches.opt_present("gamma") {
+    matches.opt_str("gamma").unwrap().parse().unwrap()
+  } else {
+    DEFAULT_GAMMA
+  };
   let num_of_threads = if matches.opt_present("t") {
     matches.opt_str("t").unwrap().parse().unwrap()
   } else {
     num_cpus::get() as NumOfThreads
-  };
-  let min_pow_of_2 = if matches.opt_present("min_pow_of_2") {
-    matches.opt_str("min_pow_of_2").unwrap().parse().unwrap()
-  } else {
-    DEFAULT_MIN_POW_OF_2
-  };
-  let max_pow_of_2 = if matches.opt_present("max_pow_of_2") {
-    matches.opt_str("max_pow_of_2").unwrap().parse().unwrap()
-  } else {
-    DEFAULT_MAX_POW_OF_2
   };
   let uses_contra_model = matches.opt_present("c");
   let fasta_file_reader = Reader::from_file(Path::new(&input_file_path)).unwrap();
@@ -62,13 +57,13 @@ fn main() {
   }
   let mut thread_pool = Pool::new(num_of_threads);
   if max_seq_len <= u8::MAX as usize {
-    multi_threaded_centroid_estimator::<u8>(&mut thread_pool, &fasta_records, output_dir_path, min_pow_of_2, max_pow_of_2, uses_contra_model);
+    multi_threaded_centroid_estimator::<u8>(&mut thread_pool, &fasta_records, output_dir_path, uses_contra_model, gamma);
   } else {
-    multi_threaded_centroid_estimator::<u16>(&mut thread_pool, &fasta_records, output_dir_path, min_pow_of_2, max_pow_of_2, uses_contra_model);
+    multi_threaded_centroid_estimator::<u16>(&mut thread_pool, &fasta_records, output_dir_path, uses_contra_model, gamma);
   }
 }
 
-fn multi_threaded_centroid_estimator<T>(thread_pool: &mut Pool, fasta_records: &FastaRecords, output_dir_path: &Path, min_pow_of_2: i32, max_pow_of_2: i32, uses_contra_model: bool)
+fn multi_threaded_centroid_estimator<T>(thread_pool: &mut Pool, fasta_records: &FastaRecords, output_dir_path: &Path, uses_contra_model: bool, gamma: Prob)
 where
   T: Unsigned + PrimInt + Hash + FromPrimitive + Integer + Ord + Display + Sync + Send,
 {
@@ -85,17 +80,22 @@ where
   if !output_dir_path.exists() {
     let _ = create_dir(output_dir_path);
   }
-  thread_pool.scoped(|scope| {
-    for pow_of_2 in min_pow_of_2 .. max_pow_of_2 + 1 {
-      let gamma = (2. as Prob).powi(pow_of_2);
-      let ref ref_2_bpp_mats = bpp_mats;
-      let ref ref_2_fasta_records = fasta_records;
-      let output_file_path = output_dir_path.join(&format!("gamma={}.fa", gamma));
-      scope.execute(move || {
-        compute_and_write_mea_sss::<T>(ref_2_bpp_mats, ref_2_fasta_records, gamma, &output_file_path);
-      });
-    }
-  });
+  if gamma != NEG_INFINITY {
+    let output_file_path = output_dir_path.join(&format!("gamma={}.fa", gamma));
+    compute_and_write_mea_sss::<T>(&bpp_mats, fasta_records, gamma, &output_file_path);
+  } else {
+    thread_pool.scoped(|scope| {
+      for pow_of_2 in MIN_POW_OF_2 .. MAX_POW_OF_2 + 1 {
+        let gamma = (2. as Prob).powi(pow_of_2);
+        let ref ref_2_bpp_mats = bpp_mats;
+        let ref ref_2_fasta_records = fasta_records;
+        let output_file_path = output_dir_path.join(&format!("gamma={}.fa", gamma));
+        scope.execute(move || {
+          compute_and_write_mea_sss::<T>(ref_2_bpp_mats, ref_2_fasta_records, gamma, &output_file_path);
+        });
+      }
+    });
+  }
 }
 
 fn compute_and_write_mea_sss<T>(bpp_mats: &SparseProbMats<T>, fasta_records: &FastaRecords, gamma: Prob, output_file_path: &Path)
