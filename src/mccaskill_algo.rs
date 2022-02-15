@@ -109,11 +109,13 @@ where
             if long_j - long_l - 1 + long_k - long_i - 1 > MAX_2_LOOP_LEN {break;}
             let accessible_pp = (k, l);
             let long_accessible_pp = (long_k, long_l);
-            if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&accessible_pp) {continue;}
-            let ss_part_func_4_base_pairing = ss_part_func_mats.part_func_mat_4_base_pairings[&accessible_pp];
-            let twoloop_free_energy = get_2_loop_fe(seq, &long_pp_closing_loop, &long_accessible_pp);
-            ss_free_energy_mats.twoloop_fe_4d_mat.insert((i, j, k, l), twoloop_free_energy);
-            logsumexp(&mut sum, ss_part_func_4_base_pairing + twoloop_free_energy);
+            match ss_part_func_mats.part_func_mat_4_base_pairings.get(&accessible_pp) {
+              Some(&part_func) => {
+                let twoloop_free_energy = get_2_loop_fe(seq, &long_pp_closing_loop, &long_accessible_pp);
+                ss_free_energy_mats.twoloop_fe_4d_mat.insert((i, j, k, l), twoloop_free_energy);
+                logsumexp(&mut sum, part_func + twoloop_free_energy);
+              }, None => {},
+            }
           }
         }
         let ml_closing_basepairing_fe = get_ml_closing_basepairing_fe(seq, &long_pp_closing_loop);
@@ -129,9 +131,11 @@ where
       sum = NEG_INFINITY;
       for k in range_inclusive(i + T::one(), j) {
         let accessible_pp = (i, k);
-        if !ss_part_func_mats.part_func_mat_4_base_pairings_accessible.contains_key(&accessible_pp) {continue;}
-        let ss_part_func_4_bp = ss_part_func_mats.part_func_mat_4_base_pairings_accessible[&accessible_pp];
-        logsumexp(&mut sum, ss_part_func_4_bp);
+        match ss_part_func_mats.part_func_mat_4_base_pairings_accessible.get(&accessible_pp) {
+          Some(&part_func) => {
+            logsumexp(&mut sum, part_func);
+          }, None => {},
+        }
       }
       ss_part_func_mats.part_func_mat_4_rightmost_base_pairings[long_i][long_j] = sum;
       sum = 0.;
@@ -162,7 +166,7 @@ where
 {
   let mut ss_part_func_mats = SsPartFuncMatsContra::<T>::new(seq_len);
   let short_seq_len = T::from_usize(seq_len).unwrap();
-  for sub_seq_len in range_inclusive(T::one(), short_seq_len) {
+  for sub_seq_len in range_inclusive(T::from_usize(MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL).unwrap(), short_seq_len) {
     for i in range_inclusive(T::zero(), short_seq_len - sub_seq_len) {
       let j = i + sub_seq_len - T::one();
       let (long_i, long_j) = (i.to_usize().unwrap(), j.to_usize().unwrap());
@@ -170,7 +174,7 @@ where
       let long_pp_closing_loop = (long_i, long_j);
       let bp_closing_loop = (seq[long_i], seq[long_j]);
       let mut sum = NEG_INFINITY;
-      if long_pp_closing_loop.1 - long_pp_closing_loop.0 + 1 >= MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL {
+      if long_pp_closing_loop.1 - long_pp_closing_loop.0 + 1 >= MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL && is_canonical(&bp_closing_loop) {
         if long_j - long_i - 1 <= CONTRA_MAX_LOOP_LEN {
           let hl_fe = get_hl_fe_contra(seq, &long_pp_closing_loop);
           ss_free_energy_mats.hl_fe_mat.insert(pp_closing_loop, hl_fe);
@@ -198,13 +202,11 @@ where
         for k in long_i + 1 .. long_j {
           logsumexp(&mut sum, ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_i + 1][k - 1] + ss_part_func_mats.part_func_mat_4_rightmost_base_pairings_on_mls[k][long_j - 1] + coefficient);
         }
-        if sum > NEG_INFINITY {
-          ss_part_func_mats.part_func_mat_4_base_pairings.insert(pp_closing_loop, sum);
-          let sum = sum + get_contra_junction_fe_multi(seq, &(long_pp_closing_loop.1, long_pp_closing_loop.0), seq_len, false) + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1];
-          ss_free_energy_mats.accessible_bp_fe_mat.insert(pp_closing_loop, sum);
-          ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_el.insert(pp_closing_loop, sum + CONTRA_EL_PAIRED_FE);
-          ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_mls.insert(pp_closing_loop, sum + CONTRA_ML_PAIRED_FE);
-        }
+        ss_part_func_mats.part_func_mat_4_base_pairings.insert(pp_closing_loop, sum);
+        let sum = sum + get_contra_junction_fe_multi(seq, &(long_pp_closing_loop.1, long_pp_closing_loop.0), seq_len, false) + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1];
+        ss_free_energy_mats.accessible_bp_fe_mat.insert(pp_closing_loop, sum);
+        ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_el.insert(pp_closing_loop, sum + CONTRA_EL_PAIRED_FE);
+        ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_mls.insert(pp_closing_loop, sum + CONTRA_ML_PAIRED_FE);
       }
       sum = NEG_INFINITY;
       let mut sum_2 = sum;
@@ -259,47 +261,53 @@ where
       for k in range(j + T::one(), short_seq_len) {
         let long_k = k.to_usize().unwrap();
         let pp_closing_loop = (i, k);
-        if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&pp_closing_loop) {continue;}
-        let ss_part_func_4_base_pairing = ss_part_func_mats.part_func_mat_4_base_pairings[&pp_closing_loop];
-        let bpp = bpp_mat[&pp_closing_loop];
-        let ml_closing_basepairing_fe = ss_free_energy_mats.ml_closing_bp_fe_mat[&pp_closing_loop];
-        let coefficient = bpp + ml_closing_basepairing_fe - ss_part_func_4_base_pairing;
-        logsumexp(&mut sum_1, coefficient + ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_j + 1][long_k - 1]);
-        logsumexp(&mut sum_2, coefficient);
+        match ss_part_func_mats.part_func_mat_4_base_pairings.get(&pp_closing_loop) {
+          Some(&part_func) => {
+            let bpp = bpp_mat[&pp_closing_loop];
+            let ml_closing_basepairing_fe = ss_free_energy_mats.ml_closing_bp_fe_mat[&pp_closing_loop];
+            let coefficient = bpp + ml_closing_basepairing_fe - part_func;
+            logsumexp(&mut sum_1, coefficient + ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_j + 1][long_k - 1]);
+            logsumexp(&mut sum_2, coefficient);
+          }, None => {},
+        }
       }
       prob_mat_4_mls_1[long_i][long_j] = sum_1;
       prob_mat_4_mls_2[long_i][long_j] = sum_2;
       let accessible_pp = (i, j);
-      if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&accessible_pp) {continue;}
-      let ss_part_func_4_base_pairing_1 = ss_part_func_mats.part_func_mat_4_base_pairings[&accessible_pp];
-      let ss_part_func_4_base_pairing_accessible = ss_part_func_mats.part_func_mat_4_base_pairings_accessible[&accessible_pp];
-      let part_func_pair = (
-        if accessible_pp.0 < T::one() {0.} else {ss_part_func_mats.part_func_mat[0][long_i - 1]},
-        if accessible_pp.1 > short_seq_len - T::from_usize(2).unwrap() {0.} else {ss_part_func_mats.part_func_mat[long_j + 1][seq_len - 1]},
-      );
-      let mut sum = part_func_pair.0 + ss_part_func_4_base_pairing_accessible + part_func_pair.1 - ss_part_func;
-      for k in range(T::zero(), i).rev() {
-        let long_k = k.to_usize().unwrap();
-        if long_i - long_k - 1 > MAX_2_LOOP_LEN {break;}
-        for l in range(j + T::one(), short_seq_len) {
-          let long_l = l.to_usize().unwrap();
-          if long_l - long_j - 1 + long_i - long_k - 1 > MAX_2_LOOP_LEN {break;}
-          let pp_closing_loop = (k, l);
-          if !ss_part_func_mats.part_func_mat_4_base_pairings.contains_key(&pp_closing_loop) {continue;}
-          let ss_part_func_4_base_pairing_2 = ss_part_func_mats.part_func_mat_4_base_pairings[&pp_closing_loop];
-          logsumexp(&mut sum, bpp_mat[&pp_closing_loop] + ss_part_func_4_base_pairing_1 - ss_part_func_4_base_pairing_2 + ss_free_energy_mats.twoloop_fe_4d_mat[&(k, l, i, j)]);
-        }
+      match ss_part_func_mats.part_func_mat_4_base_pairings.get(&accessible_pp) {
+        Some(&part_func) => {
+          let ss_part_func_4_base_pairing_accessible = ss_part_func_mats.part_func_mat_4_base_pairings_accessible[&accessible_pp];
+          let part_func_pair = (
+            if accessible_pp.0 < T::one() {0.} else {ss_part_func_mats.part_func_mat[0][long_i - 1]},
+            if accessible_pp.1 > short_seq_len - T::from_usize(2).unwrap() {0.} else {ss_part_func_mats.part_func_mat[long_j + 1][seq_len - 1]},
+          );
+          let mut sum = part_func_pair.0 + ss_part_func_4_base_pairing_accessible + part_func_pair.1 - ss_part_func;
+          for k in range(T::zero(), i).rev() {
+            let long_k = k.to_usize().unwrap();
+            if long_i - long_k - 1 > MAX_2_LOOP_LEN {break;}
+            for l in range(j + T::one(), short_seq_len) {
+              let long_l = l.to_usize().unwrap();
+              if long_l - long_j - 1 + long_i - long_k - 1 > MAX_2_LOOP_LEN {break;}
+              let pp_closing_loop = (k, l);
+              match ss_part_func_mats.part_func_mat_4_base_pairings.get(&pp_closing_loop) {
+                Some(&part_func_2) => {
+                  logsumexp(&mut sum, bpp_mat[&pp_closing_loop] + part_func - part_func_2 + ss_free_energy_mats.twoloop_fe_4d_mat[&(k, l, i, j)]);
+                }, None => {},
+              }
+            }
+          }
+          let coefficient = ss_part_func_4_base_pairing_accessible + COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE;
+          for k in 0 .. long_i {
+            let ss_part_func_4_at_least_1_base_pairings_on_mls = ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[k + 1][long_i - 1];
+            logsumexp(&mut sum, coefficient + prob_mat_4_mls_2[k][long_j] + ss_part_func_4_at_least_1_base_pairings_on_mls);
+            let prob_4_mls = prob_mat_4_mls_1[k][long_j];
+            logsumexp(&mut sum, coefficient + prob_4_mls);
+            logsumexp(&mut sum, coefficient + prob_4_mls + ss_part_func_4_at_least_1_base_pairings_on_mls);
+          }
+          debug_assert!(NEG_INFINITY <= sum && sum <= 0.);
+          bpp_mat.insert(accessible_pp, sum);
+        }, None => {},
       }
-      let coefficient = ss_part_func_4_base_pairing_accessible + COEFFICIENT_4_TERM_OF_NUM_OF_BRANCHING_HELICES_ON_INIT_ML_DELTA_FE;
-      for k in 0 .. long_i {
-        let ss_part_func_4_at_least_1_base_pairings_on_mls = ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[k + 1][long_i - 1];
-        logsumexp(&mut sum, coefficient + prob_mat_4_mls_2[k][long_j] + ss_part_func_4_at_least_1_base_pairings_on_mls);
-        let prob_4_mls = prob_mat_4_mls_1[k][long_j];
-        logsumexp(&mut sum, coefficient + prob_4_mls);
-        logsumexp(&mut sum, coefficient + prob_4_mls + ss_part_func_4_at_least_1_base_pairings_on_mls);
-      }
-      debug_assert!(NEG_INFINITY <= sum && sum <= 0.);
-      bpp_mat.insert(accessible_pp, sum);
     }
   }
   bpp_mat = bpp_mat.iter().map(|(pos_pair, &bpp)| {(*pos_pair, expf(bpp))}).collect();
@@ -346,7 +354,7 @@ where
           let mut sum = part_func_pair.0 + part_func_pair.1 + ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_el[&accessible_pp] - ss_part_func;
           for k in range(T::zero(), i).rev() {
             let long_k = k.to_usize().unwrap();
-            if long_i - long_k - 1 > MAX_2_LOOP_LEN {break;}
+            if long_i - long_k - 1 > CONTRA_MAX_LOOP_LEN {break;}
             for l in range(j + T::one(), short_seq_len) {
               let long_l = l.to_usize().unwrap();
               if long_l - long_j - 1 + long_i - long_k - 1 > CONTRA_MAX_LOOP_LEN {break;}
