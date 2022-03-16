@@ -3,7 +3,6 @@ pub use rna_ss_params::compiled_free_energy_params_turner::*;
 pub use rna_ss_params::compiled_free_energy_params_contra::*;
 pub use std::cmp::{min, max};
 pub use std::str::from_utf8_unchecked;
-pub use getopts::Options;
 pub use itertools::multizip;
 pub use num::{Unsigned, PrimInt, One, Zero, FromPrimitive, ToPrimitive, Bounded, range, range_inclusive, Integer};
 pub use std::hash::Hash;
@@ -12,10 +11,12 @@ pub use scoped_threadpool::Pool;
 pub use std::env;
 pub use std::path::Path;
 pub use bio::io::fasta::Reader;
-pub use std::io::BufWriter;
 pub use std::fs::File;
 pub use std::fs::create_dir;
-pub use std::f32::consts::LOG2_E;
+pub use hashbrown::HashMap;
+pub use std::f32::NEG_INFINITY;
+pub use std::io::prelude::*;
+pub use std::io::{BufReader, BufWriter};
 
 pub type PosPair<T> = (T, T);
 pub type PosQuadruple<T> = (T, T, T, T);
@@ -55,6 +56,23 @@ pub type PosPairs<T> = Vec<PosPair<T>>;
 pub type Mea = Prob;
 pub type MeaSsChar = u8;
 pub type MeaSsStr = Vec<MeaSsChar>;
+pub type Char = u8;
+pub type Seq = Vec<Base>;
+pub type SeqPair<'a> = (SeqSlice<'a>, SeqSlice<'a>);
+pub type Prob = f32;
+pub type LogProb = Prob;
+pub type PartFunc = Prob;
+pub type Probs = Vec<Prob>;
+pub type ProbMat = Vec<Probs>;
+pub type PartFuncs = Vec<PartFunc>;
+pub type PartFuncMat = Vec<PartFuncs>;
+pub type Pos = usize;
+pub type Base = usize;
+pub type MatchScoreMat = [[Prob; NUM_OF_BASES]; NUM_OF_BASES];
+pub type InsertScores = [Prob; NUM_OF_BASES];
+pub type RnaId = usize;
+pub type RnaIdPair = (RnaId, RnaId);
+pub type ProbMatsWithRnaIdPairs = HashMap<RnaIdPair, ProbMat>;
 
 pub const MAX_SPAN_OF_INDEX_PAIR_CLOSING_IL: usize = MAX_2_LOOP_LEN + 2;
 pub const MIN_SPAN_OF_INDEX_PAIR_CLOSING_ML: usize = MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL * 2 + 2;
@@ -67,10 +85,15 @@ pub const BIG_G: u8 = 'G' as u8;
 pub const SMALL_U: u8 = 'u' as u8;
 pub const BIG_U: u8 = 'U' as u8;
 pub const LOGSUMEXP_THRES_UPPER: FreeEnergy = 11.8624794162;
+pub const A: Base = 0;
+pub const C: Base = 1;
+pub const G: Base = 2;
+pub const U: Base = 3;
 pub const PSEUDO_BASE: Base = U + 1 as Base;
 pub const UNPAIRING_BASE: MeaSsChar = '.' as MeaSsChar;
 pub const BASE_PAIRING_LEFT_BASE: MeaSsChar = '(' as MeaSsChar;
 pub const BASE_PAIRING_RIGHT_BASE: MeaSsChar = ')' as MeaSsChar;
+pub const NUM_OF_BASES: usize = 4;
 
 impl FastaRecord {
   pub fn origin() -> FastaRecord {
@@ -349,11 +372,6 @@ pub fn is_rna_base(base: Base) -> bool {
     C => true,
     _ => false,
   }
-}
-
-pub fn print_program_usage(program_name: &str, opts: &Options) {
-  let program_usage = format!("The usage of this program: {} [options]", program_name);
-  print!("{}", opts.usage(&program_usage));
 }
 
 pub fn is_au_or_gu(bp: &BasePair) -> bool {

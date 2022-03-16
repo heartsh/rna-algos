@@ -3,7 +3,6 @@ extern crate rna_algos;
 pub use rna_algos::mccaskill_algo::*;
 pub use rna_algos::utils::*;
 
-
 fn main() {
   let args = env::args().collect::<Args>();
   let program_name = args[0].clone();
