@@ -47,7 +47,6 @@ fn main() {
     }
   }
   thread_pool.scoped(|scope| {
-    // for (bpp_mat_str, fasta_record) in multizip((bpp_mat_strs.iter_mut(), fasta_records.iter())) {
     for (rna_id_pair, align_prob_mat) in &mut align_prob_mats_with_rna_id_pairs {
       let seq_pair = (&fasta_records[rna_id_pair.0].seq[..], &fasta_records[rna_id_pair.1].seq[..]);
       scope.execute(move || {
