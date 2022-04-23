@@ -69,14 +69,14 @@ impl<T: Unsigned + PrimInt + Hash + One> SsFreeEnergyMats<T> {
   }
 }
 
-pub fn mccaskill_algo<T>(seq: SeqSlice, uses_contra_model: bool) -> (SparseProbMat<T>, SsFreeEnergyMats<T>)
+pub fn mccaskill_algo<T>(seq: SeqSlice, uses_contra_model: bool, allows_short_hairpins: bool) -> (SparseProbMat<T>, SsFreeEnergyMats<T>)
 where
   T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
 {
   let seq_len = seq.len();
   let mut ss_free_energy_mats = SsFreeEnergyMats::<T>::new();
   let bpp_mat = if uses_contra_model {
-    get_base_pairing_prob_mat_contra::<T>(seq, &get_ss_part_func_mats_contra::<T>(seq, seq_len, &mut ss_free_energy_mats), seq_len, &ss_free_energy_mats)
+    get_base_pairing_prob_mat_contra::<T>(seq, &get_ss_part_func_mats_contra::<T>(seq, seq_len, &mut ss_free_energy_mats, allows_short_hairpins), seq_len, &ss_free_energy_mats, allows_short_hairpins)
   } else {
     get_base_pairing_prob_mat::<T>(&get_ss_part_func_mats::<T>(seq, seq_len, &mut ss_free_energy_mats), seq_len, &ss_free_energy_mats)
   };
@@ -113,7 +113,8 @@ where
               Some(&part_func) => {
                 let twoloop_free_energy = get_2_loop_fe(seq, &long_pp_closing_loop, &long_accessible_pp);
                 ss_free_energy_mats.twoloop_fe_4d_mat.insert((i, j, k, l), twoloop_free_energy);
-                logsumexp(&mut sum, part_func + twoloop_free_energy);
+                let term = part_func + twoloop_free_energy;
+                logsumexp(&mut sum, term);
               }, None => {},
             }
           }
@@ -126,7 +127,8 @@ where
         ss_part_func_mats.part_func_mat_4_base_pairings.insert(pp_closing_loop, sum);
         let ml_or_el_accessible_basepairing_fe = get_ml_or_el_accessible_basepairing_fe(seq, &long_pp_closing_loop, false);
         ss_free_energy_mats.accessible_bp_fe_mat.insert(pp_closing_loop, ml_or_el_accessible_basepairing_fe);
-        ss_part_func_mats.part_func_mat_4_base_pairings_accessible.insert(pp_closing_loop, sum + ml_or_el_accessible_basepairing_fe);
+        let sum = sum + ml_or_el_accessible_basepairing_fe;
+        ss_part_func_mats.part_func_mat_4_base_pairings_accessible.insert(pp_closing_loop, sum);
       }
       sum = NEG_INFINITY;
       for k in range_inclusive(i + T::one(), j) {
@@ -160,13 +162,13 @@ where
   ss_part_func_mats
 }
 
-pub fn get_ss_part_func_mats_contra<T>(seq: SeqSlice, seq_len: usize, ss_free_energy_mats: &mut SsFreeEnergyMats<T>) -> SsPartFuncMatsContra<T>
+pub fn get_ss_part_func_mats_contra<T>(seq: SeqSlice, seq_len: usize, ss_free_energy_mats: &mut SsFreeEnergyMats<T>, allows_short_hairpins: bool) -> SsPartFuncMatsContra<T>
 where
   T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
 {
   let mut ss_part_func_mats = SsPartFuncMatsContra::<T>::new(seq_len);
   let short_seq_len = T::from_usize(seq_len).unwrap();
-  for sub_seq_len in range_inclusive(T::from_usize(MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL).unwrap(), short_seq_len) {
+  for sub_seq_len in range_inclusive(T::from_usize(if allows_short_hairpins {2} else {MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL}).unwrap(), short_seq_len) {
     for i in range_inclusive(T::zero(), short_seq_len - sub_seq_len) {
       let j = i + sub_seq_len - T::one();
       let (long_i, long_j) = (i.to_usize().unwrap(), j.to_usize().unwrap());
@@ -192,7 +194,8 @@ where
               Some(&part_func) => {
                 let twoloop_free_energy = get_2_loop_fe_contra(seq, &long_pp_closing_loop, &long_accessible_pp);
                 ss_free_energy_mats.twoloop_fe_4d_mat.insert((i, j, k, l), twoloop_free_energy);
-                logsumexp(&mut sum, part_func + twoloop_free_energy);
+                let term = part_func + twoloop_free_energy;
+                logsumexp(&mut sum, term);
               }, None => {},
             }
           }
@@ -203,8 +206,9 @@ where
           logsumexp(&mut sum, ss_part_func_mats.part_func_mat_4_at_least_1_base_pairings_on_mls[long_i + 1][k - 1] + ss_part_func_mats.part_func_mat_4_rightmost_base_pairings_on_mls[k][long_j - 1] + coefficient);
         }
         ss_part_func_mats.part_func_mat_4_base_pairings.insert(pp_closing_loop, sum);
-        let sum = sum + get_contra_junction_fe_multi(seq, &(long_pp_closing_loop.1, long_pp_closing_loop.0), seq_len, false) + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1];
-        ss_free_energy_mats.accessible_bp_fe_mat.insert(pp_closing_loop, sum);
+        let fe_multi = get_contra_junction_fe_multi(seq, &(long_pp_closing_loop.1, long_pp_closing_loop.0), seq_len, false) + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1];
+        ss_free_energy_mats.accessible_bp_fe_mat.insert(pp_closing_loop, fe_multi);
+        let sum = sum + fe_multi;
         ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_el.insert(pp_closing_loop, sum + CONTRA_EL_PAIRED_FE);
         ss_part_func_mats.part_func_mat_4_base_pairings_accessible_on_mls.insert(pp_closing_loop, sum + CONTRA_ML_PAIRED_FE);
       }
@@ -314,7 +318,7 @@ where
   bpp_mat
 }
 
-fn get_base_pairing_prob_mat_contra<T>(seq: SeqSlice, ss_part_func_mats: &SsPartFuncMatsContra<T>, seq_len: usize, ss_free_energy_mats: &SsFreeEnergyMats<T>) -> SparseProbMat<T>
+fn get_base_pairing_prob_mat_contra<T>(seq: SeqSlice, ss_part_func_mats: &SsPartFuncMatsContra<T>, seq_len: usize, ss_free_energy_mats: &SsFreeEnergyMats<T>, allows_short_hairpins: bool) -> SparseProbMat<T>
 where
   T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
 {
@@ -323,7 +327,7 @@ where
   let mut prob_mat_4_mls_1 = vec![vec![NEG_INFINITY; seq_len]; seq_len];
   let mut prob_mat_4_mls_2 = prob_mat_4_mls_1.clone();
   let short_seq_len = T::from_usize(seq_len).unwrap();
-  for sub_seq_len in range_inclusive(T::from_usize(MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL).unwrap(), short_seq_len).rev() {
+  for sub_seq_len in range_inclusive(T::from_usize(if allows_short_hairpins {2} else {MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL}).unwrap(), short_seq_len).rev() {
     for i in range_inclusive(T::zero(), short_seq_len - sub_seq_len) {
       let j = i + sub_seq_len - T::one();
       let (long_i, long_j) = (i.to_usize().unwrap(), j.to_usize().unwrap());
