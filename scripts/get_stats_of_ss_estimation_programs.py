@@ -56,19 +56,19 @@ def main():
       rna_seq_lens = [len(rna_seq.seq) for rna_seq in SeqIO.parse(rna_seq_file_path, "fasta")]
       (rna_fam_name, extension) = os.path.splitext(rna_fam_file)
       ref_ss_file_path = os.path.join(rna_fam_dir_path, rna_fam_file)
-      ref_sss_and_flat_sss = utils.get_sss_and_flat_sss(utils.get_ss_strings(ref_ss_file_path))
+      ref_sss = utils.get_sss(ref_ss_file_path)
       centroid_estimator_turner_estimated_ss_dir_path = os.path.join(centroid_estimator_turner_ss_dir_path, rna_fam_name)
       centroid_estimator_turner_estimated_ss_file_path = os.path.join(centroid_estimator_turner_estimated_ss_dir_path, "gamma=" + gamma_str + ".fa")
-      centroid_estimator_turner_count_params.insert(0, (centroid_estimator_turner_estimated_ss_file_path, ref_sss_and_flat_sss, rna_seq_lens))
+      centroid_estimator_turner_count_params.insert(0, (centroid_estimator_turner_estimated_ss_file_path, ref_sss, rna_seq_lens))
       centroid_estimator_contra_estimated_ss_dir_path = os.path.join(centroid_estimator_contra_ss_dir_path, rna_fam_name)
       centroid_estimator_contra_estimated_ss_file_path = os.path.join(centroid_estimator_contra_estimated_ss_dir_path, "gamma=" + gamma_str + ".fa")
-      centroid_estimator_contra_count_params.insert(0, (centroid_estimator_contra_estimated_ss_file_path, ref_sss_and_flat_sss, rna_seq_lens))
+      centroid_estimator_contra_count_params.insert(0, (centroid_estimator_contra_estimated_ss_file_path, ref_sss, rna_seq_lens))
       centroidfold_estimated_ss_dir_path_turner = os.path.join(centroidfold_ss_dir_path_turner, rna_fam_name)
       centroidfold_estimated_ss_file_path_turner = os.path.join(centroidfold_estimated_ss_dir_path_turner, "gamma=" + gamma_str + ".fa")
-      centroidfold_count_params_turner.insert(0, (centroidfold_estimated_ss_file_path_turner, ref_sss_and_flat_sss, rna_seq_lens))
+      centroidfold_count_params_turner.insert(0, (centroidfold_estimated_ss_file_path_turner, ref_sss, rna_seq_lens))
       centroidfold_estimated_ss_dir_path_contra = os.path.join(centroidfold_ss_dir_path_contra, rna_fam_name)
       centroidfold_estimated_ss_file_path_contra = os.path.join(centroidfold_estimated_ss_dir_path_contra, "gamma=" + gamma_str + ".fa")
-      centroidfold_count_params_contra.insert(0, (centroidfold_estimated_ss_file_path_contra, ref_sss_and_flat_sss, rna_seq_lens))
+      centroidfold_count_params_contra.insert(0, (centroidfold_estimated_ss_file_path_contra, ref_sss, rna_seq_lens))
     results = pool.map(get_pos_neg_counts, centroid_estimator_turner_count_params)
     tp, tn, fp, fn = final_sum(results)
     ppv = get_ppv(tp, fp)
@@ -152,12 +152,10 @@ def main():
   pyplot.savefig(image_dir_path + "/gammas_vs_mccs_on_ss_estimation.eps", bbox_inches = "tight")
 
 def get_pos_neg_counts(params):
-  (estimated_ss_file_path, ref_sss_and_flat_sss, rna_seq_lens) = params
+  (estimated_ss_file_path, ref_sss, rna_seq_lens) = params
   tp = tn = fp = fn = 0
-  estimated_sss_and_flat_sss = utils.get_sss_and_flat_sss(utils.get_ss_strings(estimated_ss_file_path))
-  for (estimated_ss_and_flat_ss, ref_ss_and_flat_ss, rna_seq_len) in zip(estimated_sss_and_flat_sss, ref_sss_and_flat_sss, rna_seq_lens):
-    estimated_ss, estimated_flat_ss = estimated_ss_and_flat_ss
-    ref_ss, ref_flat_ss = ref_ss_and_flat_ss
+  estimated_sss = utils.get_sss(estimated_ss_file_path)
+  for (estimated_ss, ref_ss, rna_seq_len) in zip(estimated_sss, ref_sss, rna_seq_lens):
     for i in range(0, rna_seq_len):
       for j in range(i + 1, rna_seq_len):
         estimated_bin = (i, j) in estimated_ss

@@ -12,6 +12,8 @@ import time
 import datetime
 import shutil
 
+bracket_pairs = [("(", ")"), ("A", "a"), ("B", "b"), ("C", "c"), ("D", "d"), ("E", "e"), ]
+
 def main():
   (current_work_dir_path, asset_dir_path, program_dir_path, conda_program_dir_path) = utils.get_dir_paths()
   rfam_seed_sta_file_path = asset_dir_path + "/rfam_seed_stas_v14.3.sth"
@@ -74,6 +76,8 @@ def convert_css(css):
       converted_css += "("
     elif char == ")" or char == ">" or char == "]" or char == "}":
       converted_css += ")"
+    elif char == "A" or char == "B" or char == "C" or char == "D" or char == "E" or char == "a" or char == "b" or char == "c" or char == "d" or char == "e":
+      converted_css += char
     else:
       converted_css += "."
   return converted_css
@@ -87,17 +91,18 @@ def recover_ss(css, seq_with_gaps):
       pos += 1
   recovered_ss = "." * pos
   stack = []
-  for (i, char) in enumerate(css):
-    if char == "(":
-      stack.append(i)
-    elif char == ")":
-      j = stack.pop()
-      if seq_with_gaps[j] == "-" or seq_with_gaps[i] == "-":
-        continue
-      mapped_j = pos_map[j]
-      mapped_i = pos_map[i]
-      recovered_ss = recovered_ss[: mapped_j] + "(" + recovered_ss[mapped_j + 1 :]
-      recovered_ss = recovered_ss[: mapped_i] + ")" + recovered_ss[mapped_i + 1 :]
+  for (left, right) in bracket_pairs:
+    for (i, char) in enumerate(css):
+      if char == left:
+        stack.append(i)
+      elif char == right:
+        j = stack.pop()
+        if seq_with_gaps[j] == "-" or seq_with_gaps[i] == "-":
+          continue
+        mapped_j = pos_map[j]
+        mapped_i = pos_map[i]
+        recovered_ss = recovered_ss[: mapped_j] + left + recovered_ss[mapped_j + 1 :]
+        recovered_ss = recovered_ss[: mapped_i] + right + recovered_ss[mapped_i + 1 :]
   return recovered_ss
 
 if __name__ == "__main__":
