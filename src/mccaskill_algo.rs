@@ -103,11 +103,11 @@ where
           }
         }
         let ml_closing_basepairing_fe = get_ml_closing_basepairing_fe(seq, &long_pp_closing_loop);
-        ss_free_energy_mats.ml_closing_bp_fe_mat.insert(pp_closing_loop, ml_closing_basepairing_fe);
         logsumexp(&mut sum, ss_part_func_mats.part_func_mat_4_ml[long_i + 1][long_j - 1] + ml_closing_basepairing_fe);
         let ml_or_el_accessible_basepairing_fe = get_ml_or_el_accessible_basepairing_fe(seq, &long_pp_closing_loop, false);
-        ss_free_energy_mats.accessible_bp_fe_mat.insert(pp_closing_loop, ml_or_el_accessible_basepairing_fe);
         if sum > NEG_INFINITY {
+          ss_free_energy_mats.ml_closing_bp_fe_mat.insert(pp_closing_loop, ml_closing_basepairing_fe);
+          ss_free_energy_mats.accessible_bp_fe_mat.insert(pp_closing_loop, ml_or_el_accessible_basepairing_fe);
           ss_part_func_mats.part_func_mat_4_base_pairings.insert(pp_closing_loop, sum);
           let sum = sum + ml_or_el_accessible_basepairing_fe;
           ss_part_func_mats.part_func_mat_4_base_pairings_accessible.insert(pp_closing_loop, sum);
@@ -160,41 +160,40 @@ where
       let bp_closing_loop = (seq[long_i], seq[long_j]);
       let mut sum = NEG_INFINITY;
       if is_canonical(&bp_closing_loop) {
-        if !allows_short_hairpins && long_pp_closing_loop.1 - long_pp_closing_loop.0 + 1 < MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL {
-          continue;
-        }
-        if long_j - long_i - 1 <= CONTRA_MAX_LOOP_LEN {
-          let hl_fe = get_hl_fe_contra(seq, &long_pp_closing_loop);
-          ss_free_energy_mats.hl_fe_mat.insert(pp_closing_loop, hl_fe);
-          logsumexp(&mut sum, hl_fe);
-        }
-        for k in range(i + T::one(), j - T::one()) {
-          let long_k = k.to_usize().unwrap();
-          if long_k - long_i - 1 > CONTRA_MAX_LOOP_LEN {break;}
-          for l in range(k + T::one(), j).rev() {
-            let long_l = l.to_usize().unwrap();
-            if long_j - long_l - 1 + long_k - long_i - 1 > CONTRA_MAX_LOOP_LEN {break;}
-            let accessible_pp = (k, l);
-            let long_accessible_pp = (long_k, long_l);
-            match ss_part_func_mats.part_func_mat_4_base_pairings.get(&accessible_pp) {
-              Some(&part_func) => {
-                let twoloop_free_energy = get_2_loop_fe_contra(seq, &long_pp_closing_loop, &long_accessible_pp);
-                ss_free_energy_mats.twoloop_fe_4d_mat.insert((i, j, k, l), twoloop_free_energy);
-                let term = part_func + twoloop_free_energy;
-                logsumexp(&mut sum, term);
-              }, None => {},
+        if allows_short_hairpins || (!allows_short_hairpins && long_pp_closing_loop.1 - long_pp_closing_loop.0 + 1 >= MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL) {
+          if long_j - long_i - 1 <= CONTRA_MAX_LOOP_LEN {
+            let hl_fe = get_hl_fe_contra(seq, &long_pp_closing_loop);
+            ss_free_energy_mats.hl_fe_mat.insert(pp_closing_loop, hl_fe);
+            logsumexp(&mut sum, hl_fe);
+          }
+          for k in range(i + T::one(), j - T::one()) {
+            let long_k = k.to_usize().unwrap();
+            if long_k - long_i - 1 > CONTRA_MAX_LOOP_LEN {break;}
+            for l in range(k + T::one(), j).rev() {
+              let long_l = l.to_usize().unwrap();
+              if long_j - long_l - 1 + long_k - long_i - 1 > CONTRA_MAX_LOOP_LEN {break;}
+              let accessible_pp = (k, l);
+              let long_accessible_pp = (long_k, long_l);
+              match ss_part_func_mats.part_func_mat_4_base_pairings.get(&accessible_pp) {
+                Some(&part_func) => {
+                  let twoloop_free_energy = get_2_loop_fe_contra(seq, &long_pp_closing_loop, &long_accessible_pp);
+                  ss_free_energy_mats.twoloop_fe_4d_mat.insert((i, j, k, l), twoloop_free_energy);
+                  let term = part_func + twoloop_free_energy;
+                  logsumexp(&mut sum, term);
+                }, None => {},
+              }
             }
           }
-        }
-        let coefficient = CONTRA_ML_BASE_FE + CONTRA_ML_PAIRED_FE + get_contra_junction_fe_multi(seq, &long_pp_closing_loop, seq_len, false);
-        ss_free_energy_mats.ml_closing_bp_fe_mat.insert(pp_closing_loop, coefficient);
-        logsumexp(&mut sum, ss_part_func_mats.part_func_mat_4_ml[long_i + 1][long_j - 1] + coefficient);
-        let fe_multi = get_contra_junction_fe_multi(seq, &(long_pp_closing_loop.1, long_pp_closing_loop.0), seq_len, false) + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1];
-        ss_free_energy_mats.accessible_bp_fe_mat.insert(pp_closing_loop, fe_multi);
-        if sum > NEG_INFINITY {
-          ss_part_func_mats.part_func_mat_4_base_pairings.insert(pp_closing_loop, sum);
-          let sum = sum + fe_multi;
-          ss_part_func_mats.part_func_mat_4_base_pairings_accessible.insert(pp_closing_loop, sum);
+          let coefficient = CONTRA_ML_BASE_FE + CONTRA_ML_PAIRED_FE + get_contra_junction_fe_multi(seq, &long_pp_closing_loop, seq_len, false);
+          logsumexp(&mut sum, ss_part_func_mats.part_func_mat_4_ml[long_i + 1][long_j - 1] + coefficient);
+          let fe_multi = get_contra_junction_fe_multi(seq, &(long_pp_closing_loop.1, long_pp_closing_loop.0), seq_len, false) + CONTRA_BASE_PAIR_FES[bp_closing_loop.0][bp_closing_loop.1];
+          if sum > NEG_INFINITY {
+            ss_free_energy_mats.ml_closing_bp_fe_mat.insert(pp_closing_loop, coefficient);
+            ss_free_energy_mats.accessible_bp_fe_mat.insert(pp_closing_loop, fe_multi);
+            ss_part_func_mats.part_func_mat_4_base_pairings.insert(pp_closing_loop, sum);
+            let sum = sum + fe_multi;
+            ss_part_func_mats.part_func_mat_4_base_pairings_accessible.insert(pp_closing_loop, sum);
+          }
         }
       }
       sum = NEG_INFINITY;
