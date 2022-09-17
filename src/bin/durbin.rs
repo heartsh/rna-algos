@@ -37,6 +37,8 @@ fn main() {
     seq.push(PSEUDO_BASE);
     fasta_records.push(FastaRecord::new(String::from(fasta_record.id()), seq));
   }
+  let mut align_feature_score_sets = AlignFeatureCountSets::new(0.);
+  align_feature_score_sets.transfer();
   let num_of_fasta_records = fasta_records.len();
   let mut thread_pool = Pool::new(num_of_threads);
   let mut align_prob_mats_with_rna_id_pairs = ProbMatsWithRnaIdPairs::default();
@@ -46,11 +48,12 @@ fn main() {
       align_prob_mats_with_rna_id_pairs.insert(rna_id_pair, ProbMat::new());
     }
   }
+  let ref ref_2_align_feature_score_sets = align_feature_score_sets;
   thread_pool.scoped(|scope| {
     for (rna_id_pair, align_prob_mat) in &mut align_prob_mats_with_rna_id_pairs {
       let seq_pair = (&fasta_records[rna_id_pair.0].seq[..], &fasta_records[rna_id_pair.1].seq[..]);
       scope.execute(move || {
-        *align_prob_mat = durbin_algo(&seq_pair);
+        *align_prob_mat = durbin_algo(&seq_pair, ref_2_align_feature_score_sets);
       });
     }
   });

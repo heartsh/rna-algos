@@ -67,13 +67,16 @@ fn multi_threaded_centroid_estimator<T>(thread_pool: &mut Pool, fasta_records: &
 where
   T: Unsigned + PrimInt + Hash + FromPrimitive + Integer + Ord + Display + Sync + Send,
 {
+  let mut struct_feature_score_sets = StructFeatureCountSets::new(0.);
+  struct_feature_score_sets.transfer();
+  let ref ref_2_struct_feature_score_sets = struct_feature_score_sets;
   let num_of_fasta_records = fasta_records.len();
   let mut bpp_mats = vec![SparseProbMat::<T>::default(); num_of_fasta_records];
   thread_pool.scoped(|scope| {
     for (fasta_record, bpp_mat) in fasta_records.iter().zip(bpp_mats.iter_mut()) {
       let ref seq = fasta_record.seq;
       scope.execute(move || {
-        *bpp_mat = mccaskill_algo::<T>(seq, uses_contra_model, false).0;
+        *bpp_mat = mccaskill_algo::<T>(seq, uses_contra_model, false, ref_2_struct_feature_score_sets).0;
       });
     }
   });

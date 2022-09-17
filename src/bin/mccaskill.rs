@@ -39,16 +39,19 @@ fn main() {
   }
   let num_of_fasta_records = fasta_records.len();
   let mut thread_pool = Pool::new(num_of_threads);
+  let mut struct_feature_score_sets = StructFeatureCountSets::new(0.);
+  struct_feature_score_sets.transfer();
+  let ref ref_2_struct_feature_score_sets = struct_feature_score_sets;
   let mut bpp_mat_strs = vec![String::new(); num_of_fasta_records];
   thread_pool.scoped(|scope| {
     for (bpp_mat_str, fasta_record) in multizip((bpp_mat_strs.iter_mut(), fasta_records.iter())) {
       scope.execute(move || {
         let seq_len = fasta_record.seq.len();
         if seq_len <= u8::MAX as usize {
-          let bpp_mat = mccaskill_algo::<u8>(&fasta_record.seq[..], uses_contra_model, false).0;
+          let bpp_mat = mccaskill_algo::<u8>(&fasta_record.seq[..], uses_contra_model, false, ref_2_struct_feature_score_sets).0;
           *bpp_mat_str = convert_bpp_mat_2_str(&bpp_mat);
         } else {
-          let bpp_mat = mccaskill_algo::<u16>(&fasta_record.seq[..], uses_contra_model, false).0;
+          let bpp_mat = mccaskill_algo::<u16>(&fasta_record.seq[..], uses_contra_model, false, ref_2_struct_feature_score_sets).0;
           *bpp_mat_str = convert_bpp_mat_2_str(&bpp_mat);
         }
       });

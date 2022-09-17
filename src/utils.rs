@@ -73,6 +73,57 @@ pub type InsertScores = [Prob; NUM_OF_BASES];
 pub type RnaId = usize;
 pub type RnaIdPair = (RnaId, RnaId);
 pub type ProbMatsWithRnaIdPairs = HashMap<RnaIdPair, ProbMat>;
+pub type FeatureCount = Prob;
+
+#[derive(Clone, Debug)]
+pub struct StructFeatureCountSets {
+  // The CONTRAfold model.
+  pub hairpin_loop_length_counts: HairpinLoopLengthCounts,
+  pub bulge_loop_length_counts: BulgeLoopLengthCounts,
+  pub interior_loop_length_counts: InteriorLoopLengthCounts,
+  pub interior_loop_length_counts_symm: InteriorLoopLengthCountsSymm,
+  pub interior_loop_length_counts_asymm: InteriorLoopLengthCountsAsymm,
+  pub stack_count_mat: StackCountMat,
+  pub terminal_mismatch_count_mat: TerminalMismatchCount4dMat,
+  pub left_dangle_count_mat: DangleCount3dMat,
+  pub right_dangle_count_mat: DangleCount3dMat,
+  pub helix_end_count_mat: HelixEndCountMat,
+  pub base_pair_count_mat: BasePairCountMat,
+  pub interior_loop_length_count_mat_explicit: InteriorLoopLengthCountMatExplicit,
+  pub bulge_loop_0x1_length_counts: BulgeLoop0x1LengthCounts,
+  pub interior_loop_1x1_length_count_mat: InteriorLoop1x1LengthCountMat,
+  pub multi_loop_base_count: FeatureCount,
+  pub multi_loop_basepairing_count: FeatureCount,
+  pub multi_loop_accessible_baseunpairing_count: FeatureCount,
+  pub external_loop_accessible_basepairing_count: FeatureCount,
+  pub external_loop_accessible_baseunpairing_count: FeatureCount,
+  // The cumulative parameters of the CONTRAfold model.
+  pub hairpin_loop_length_counts_cumulative: HairpinLoopLengthCounts,
+  pub bulge_loop_length_counts_cumulative: BulgeLoopLengthCounts,
+  pub interior_loop_length_counts_cumulative: InteriorLoopLengthCounts,
+  pub interior_loop_length_counts_symm_cumulative: InteriorLoopLengthCountsSymm,
+  pub interior_loop_length_counts_asymm_cumulative: InteriorLoopLengthCountsAsymm,
+}
+
+pub type TerminalMismatchCount3dMat = [[[FeatureCount; NUM_OF_BASES]; NUM_OF_BASES]; NUM_OF_BASES];
+pub type TerminalMismatchCount4dMat = [TerminalMismatchCount3dMat; NUM_OF_BASES];
+pub type StackCountMat = TerminalMismatchCount4dMat;
+pub type HelixEndCountMat = [[FeatureCount; NUM_OF_BASES]; NUM_OF_BASES];
+pub type AlignCountMat = HelixEndCountMat;
+pub type InsertCounts = [FeatureCount; NUM_OF_BASES];
+pub type HairpinLoopLengthCounts =
+  [FeatureCount; CONSPROB_MAX_HAIRPIN_LOOP_LEN + 1];
+pub type BulgeLoopLengthCounts = [FeatureCount; CONSPROB_MAX_TWOLOOP_LEN];
+pub type InteriorLoopLengthCounts = [FeatureCount; CONSPROB_MAX_TWOLOOP_LEN - 1];
+pub type InteriorLoopLengthCountsSymm = [FeatureCount; CONSPROB_MAX_INTERIOR_LOOP_LEN_SYMM];
+pub type InteriorLoopLengthCountsAsymm = [FeatureCount; CONSPROB_MAX_INTERIOR_LOOP_LEN_ASYMM];
+pub type DangleCount3dMat = [[[FeatureCount; NUM_OF_BASES]; NUM_OF_BASES]; NUM_OF_BASES];
+pub type BasePairCountMat = HelixEndCountMat;
+pub type InteriorLoopLengthCountMatExplicit = [[FeatureCount; CONSPROB_MAX_INTERIOR_LOOP_LEN_EXPLICIT]; CONSPROB_MAX_INTERIOR_LOOP_LEN_EXPLICIT];
+pub type BulgeLoop0x1LengthCounts = [FeatureCount; NUM_OF_BASES];
+pub type InteriorLoop1x1LengthCountMat = [[FeatureCount; NUM_OF_BASES]; NUM_OF_BASES];
+pub type InteriorLoopLengthCountMat =
+  [[FeatureCount; CONSPROB_MAX_TWOLOOP_LEN - 1]; CONSPROB_MAX_TWOLOOP_LEN - 1];
 
 pub const MAX_SPAN_OF_INDEX_PAIR_CLOSING_IL: usize = MAX_2_LOOP_LEN + 2;
 pub const MIN_SPAN_OF_INDEX_PAIR_CLOSING_ML: usize = MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL * 2 + 2;
@@ -94,6 +145,13 @@ pub const UNPAIRING_BASE: MeaSsChar = '.' as MeaSsChar;
 pub const BASE_PAIRING_LEFT_BASE: MeaSsChar = '(' as MeaSsChar;
 pub const BASE_PAIRING_RIGHT_BASE: MeaSsChar = ')' as MeaSsChar;
 pub const NUM_OF_BASES: usize = 4;
+pub const CONSPROB_MAX_HAIRPIN_LOOP_LEN: usize = 30;
+pub const CONSPROB_MAX_TWOLOOP_LEN: usize = CONSPROB_MAX_HAIRPIN_LOOP_LEN;
+pub const CONSPROB_MIN_HAIRPIN_LOOP_LEN: usize = 3;
+pub const CONSPROB_MIN_HAIRPIN_LOOP_SPAN: usize = CONSPROB_MIN_HAIRPIN_LOOP_LEN + 2;
+pub const CONSPROB_MAX_INTERIOR_LOOP_LEN_EXPLICIT: usize = 4;
+pub const CONSPROB_MAX_INTERIOR_LOOP_LEN_SYMM: usize = CONSPROB_MAX_TWOLOOP_LEN / 2;
+pub const CONSPROB_MAX_INTERIOR_LOOP_LEN_ASYMM: usize = CONSPROB_MAX_TWOLOOP_LEN - 2;
 
 impl FastaRecord {
   pub fn origin() -> FastaRecord {
@@ -279,89 +337,89 @@ pub fn get_ml_or_el_accessible_basepairing_fe(seq: SeqSlice, pp_accessible: &(us
   fe
 }
 
-pub fn get_hl_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize)) -> FreeEnergy {
+pub fn get_hl_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), struct_feature_score_sets: &StructFeatureCountSets,) -> FreeEnergy {
   let hl_len = pp_closing_loop.1 - pp_closing_loop.0 - 1;
-  CONTRA_HL_LENGTH_FES[hl_len.min(CONTRA_MAX_LOOP_LEN)]
-    + get_contra_junction_fe_single(seq, pp_closing_loop)
+  struct_feature_score_sets.hairpin_loop_length_counts_cumulative[hl_len.min(CONTRA_MAX_LOOP_LEN)]
+    + get_contra_junction_fe_single(seq, pp_closing_loop, struct_feature_score_sets)
 }
 
-pub fn get_2_loop_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
+pub fn get_2_loop_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize), struct_feature_score_sets: &StructFeatureCountSets,) -> FreeEnergy {
   let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
   let fe = if pp_closing_loop.0 + 1 == accessible_pp.0 && pp_closing_loop.1 - 1 == accessible_pp.1 {
-    get_stack_fe_contra(seq, pp_closing_loop, accessible_pp)
+    get_stack_fe_contra(seq, pp_closing_loop, accessible_pp, struct_feature_score_sets)
   } else if pp_closing_loop.0 + 1 == accessible_pp.0 || pp_closing_loop.1 - 1 == accessible_pp.1 {
-    get_bl_fe_contra(seq, pp_closing_loop, accessible_pp)
+    get_bl_fe_contra(seq, pp_closing_loop, accessible_pp, struct_feature_score_sets)
   } else {
-    get_il_fe_contra(seq, pp_closing_loop, accessible_pp)
+    get_il_fe_contra(seq, pp_closing_loop, accessible_pp, struct_feature_score_sets)
   };
-  fe + CONTRA_BASE_PAIR_FES[accessible_bp.0][accessible_bp.1]
+  fe + struct_feature_score_sets.base_pair_count_mat[accessible_bp.0][accessible_bp.1]
 }
 
-pub fn get_stack_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
+pub fn get_stack_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize), struct_feature_score_sets: &StructFeatureCountSets,) -> FreeEnergy {
   let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
   let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
-  CONTRA_STACK_FES[bp_closing_loop.0][bp_closing_loop.1][accessible_bp.0][accessible_bp.1]
+  struct_feature_score_sets.stack_count_mat[bp_closing_loop.0][bp_closing_loop.1][accessible_bp.0][accessible_bp.1]
 }
 
-pub fn get_bl_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
+pub fn get_bl_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize), struct_feature_score_sets: &StructFeatureCountSets,) -> FreeEnergy {
   let bl_len = accessible_pp.0 - pp_closing_loop.0 + pp_closing_loop.1 - accessible_pp.1 - 2;
   let fe = if bl_len == 1 {
-    CONTRA_BL_0X1_FES[if accessible_pp.0 - pp_closing_loop.0 - 1 == 1 {
+    struct_feature_score_sets.bulge_loop_0x1_length_counts[if accessible_pp.0 - pp_closing_loop.0 - 1 == 1 {
       seq[pp_closing_loop.0 + 1]
     } else {
       seq[pp_closing_loop.1 - 1]
     }]
   } else {0.};
-  fe + CONTRA_BL_LENGTH_FES[bl_len - 1]
-    + get_contra_junction_fe_single(seq, pp_closing_loop)
-    + get_contra_junction_fe_single(seq, &(accessible_pp.1, accessible_pp.0))
+  fe + struct_feature_score_sets.bulge_loop_length_counts_cumulative[bl_len - 1]
+    + get_contra_junction_fe_single(seq, pp_closing_loop, struct_feature_score_sets)
+    + get_contra_junction_fe_single(seq, &(accessible_pp.1, accessible_pp.0), struct_feature_score_sets)
 }
 
-pub fn get_il_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize)) -> FreeEnergy {
+pub fn get_il_fe_contra(seq: SeqSlice, pp_closing_loop: &(usize, usize), accessible_pp: &(usize, usize), struct_feature_score_sets: &StructFeatureCountSets,) -> FreeEnergy {
   let pair_of_nums_of_unpaired_bases = (accessible_pp.0 - pp_closing_loop.0 - 1, pp_closing_loop.1 - accessible_pp.1 - 1);
   let il_len = pair_of_nums_of_unpaired_bases.0 + pair_of_nums_of_unpaired_bases.1;
   let fe = if pair_of_nums_of_unpaired_bases.0 == pair_of_nums_of_unpaired_bases.1 {
     let fe_3 = if il_len == 2 {
-      CONTRA_IL_1X1_FES[seq[pp_closing_loop.0 + 1]][seq[pp_closing_loop.1 - 1]]
+      struct_feature_score_sets.interior_loop_1x1_length_count_mat[seq[pp_closing_loop.0 + 1]][seq[pp_closing_loop.1 - 1]]
     } else {0.};
-    fe_3 + CONTRA_IL_SYMM_LENGTH_FES[pair_of_nums_of_unpaired_bases.0 - 1]
+    fe_3 + struct_feature_score_sets.interior_loop_length_counts_symm_cumulative[pair_of_nums_of_unpaired_bases.0 - 1]
   } else {
-    CONTRA_IL_ASYMM_LENGTH_FES[get_abs_diff(pair_of_nums_of_unpaired_bases.0, pair_of_nums_of_unpaired_bases.1) - 1]
+    struct_feature_score_sets.interior_loop_length_counts_asymm_cumulative[get_abs_diff(pair_of_nums_of_unpaired_bases.0, pair_of_nums_of_unpaired_bases.1) - 1]
   };
   let fe_2 = if pair_of_nums_of_unpaired_bases.0 <= 4 && pair_of_nums_of_unpaired_bases.1 <= 4 {
-    CONTRA_IL_EXPLICIT_FES[pair_of_nums_of_unpaired_bases.0 - 1][pair_of_nums_of_unpaired_bases.1 - 1]
+    struct_feature_score_sets.interior_loop_length_count_mat_explicit[pair_of_nums_of_unpaired_bases.0 - 1][pair_of_nums_of_unpaired_bases.1 - 1]
   } else {0.};
-  fe + fe_2 + CONTRA_IL_LENGTH_FES[il_len - 2]
-    + get_contra_junction_fe_single(seq, pp_closing_loop)
-    + get_contra_junction_fe_single(seq, &(accessible_pp.1, accessible_pp.0))
+  fe + fe_2 + struct_feature_score_sets.interior_loop_length_counts_cumulative[il_len - 2]
+    + get_contra_junction_fe_single(seq, pp_closing_loop, struct_feature_score_sets)
+    + get_contra_junction_fe_single(seq, &(accessible_pp.1, accessible_pp.0), struct_feature_score_sets)
 }
 
-pub fn get_contra_junction_fe_multi(seq: SeqSlice, pp: &(usize, usize), seq_len: usize, uses_sentinel_nucs: bool) -> FreeEnergy {
+pub fn get_contra_junction_fe_multi(seq: SeqSlice, pp: &(usize, usize), seq_len: usize, uses_sentinel_nucs: bool, struct_feature_score_sets: &StructFeatureCountSets,) -> FreeEnergy {
   let bp = (seq[pp.0], seq[pp.1]);
   let five_prime_end = if uses_sentinel_nucs {1} else {0};
   let three_prime_end = seq_len - if uses_sentinel_nucs {2} else {1};
-  get_contra_helix_closing_fe(&bp) + if pp.0 < three_prime_end && pp.1 > five_prime_end {
-    CONTRA_LEFT_DANGLE_FES[bp.0][bp.1][seq[pp.0 + 1]] + CONTRA_RIGHT_DANGLE_FES[bp.0][bp.1][seq[pp.1 - 1]]
-  } else if pp.0 < three_prime_end {
-    CONTRA_LEFT_DANGLE_FES[bp.0][bp.1][seq[pp.0 + 1]]
-  } else if pp.1 > five_prime_end {
-    CONTRA_RIGHT_DANGLE_FES[bp.0][bp.1][seq[pp.1 - 1]]
+  get_contra_helix_closing_fe(&bp, struct_feature_score_sets) + if pp.0 < three_prime_end {
+    struct_feature_score_sets.left_dangle_count_mat[bp.0][bp.1][seq[pp.0 + 1]]
+  } else {
+    0.
+  } + if pp.1 > five_prime_end {
+    struct_feature_score_sets.right_dangle_count_mat[bp.0][bp.1][seq[pp.1 - 1]]
   } else {
     0.
   }
 }
 
-pub fn get_contra_junction_fe_single(seq: SeqSlice, pp: &(usize, usize)) -> FreeEnergy {
+pub fn get_contra_junction_fe_single(seq: SeqSlice, pp: &(usize, usize), struct_feature_score_sets: &StructFeatureCountSets,) -> FreeEnergy {
   let bp = (seq[pp.0], seq[pp.1]);
-  get_contra_helix_closing_fe(&bp) + get_contra_terminal_mismatch_fe(&bp, &(seq[pp.0 + 1], seq[pp.1 - 1]))
+  get_contra_helix_closing_fe(&bp, struct_feature_score_sets) + get_contra_terminal_mismatch_fe(&bp, &(seq[pp.0 + 1], seq[pp.1 - 1]), struct_feature_score_sets)
 }
 
-pub fn get_contra_helix_closing_fe(bp: &BasePair) -> FreeEnergy {
-  CONTRA_HELIX_CLOSING_FES[bp.0][bp.1]
+pub fn get_contra_helix_closing_fe(bp: &BasePair, struct_feature_score_sets: &StructFeatureCountSets,) -> FreeEnergy {
+  struct_feature_score_sets.helix_end_count_mat[bp.0][bp.1]
 }
 
-pub fn get_contra_terminal_mismatch_fe(bp: &BasePair, mismatch_bp: &BasePair) -> FreeEnergy {
-  CONTRA_TERMINAL_MISMATCH_FES[bp.0][bp.1][mismatch_bp.0][mismatch_bp.1]
+pub fn get_contra_terminal_mismatch_fe(bp: &BasePair, mismatch_bp: &BasePair, struct_feature_score_sets: &StructFeatureCountSets,) -> FreeEnergy {
+  struct_feature_score_sets.terminal_mismatch_count_mat[bp.0][bp.1][mismatch_bp.0][mismatch_bp.1]
 }
 
 pub fn is_rna_base(base: Base) -> bool {
