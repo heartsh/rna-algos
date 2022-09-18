@@ -14,7 +14,12 @@ fn main() {
     "STR",
   );
   opts.reqopt("o", "output_file_path", "An output file path", "STR");
-  opts.optopt("t", "num_of_threads", "The number of threads in multithreading (Use all the threads of this computer by default)", "UINT");
+  opts.optopt(
+    "t",
+    "num_of_threads",
+    "The number of threads in multithreading (Use all the threads of this computer by default)",
+    "UINT",
+  );
   opts.optflag(
     "c",
     "use_contra_model",
@@ -25,7 +30,7 @@ fn main() {
     Ok(opt) => opt,
     Err(failure) => {
       print_program_usage(&program_name, &opts);
-      panic!(failure.to_string())
+      panic!("{}", failure.to_string())
     }
   };
   if matches.opt_present("h") {
