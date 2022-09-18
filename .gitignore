@@ -4,6 +4,7 @@ target
 !*.rs
 !*.py
 !Cargo.toml
+!rustfmt.toml
 !.gitignore
 !README.md
 !assets/rfam_seed_stas_v14.3.sth

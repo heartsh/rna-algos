@@ -20,7 +20,11 @@ impl<T> MeaSs<T> {
   }
 }
 
-pub fn centroid_estimator<T: Hash>(bpp_mat: &SparseProbMat<T>, seq_len: usize, gamma: Prob) -> MeaSs<T>
+pub fn centroid_estimator<T: Hash>(
+  bpp_mat: &SparseProbMat<T>,
+  seq_len: usize,
+  gamma: Prob,
+) -> MeaSs<T>
 where
   T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
 {
@@ -46,9 +50,10 @@ where
           if ea > mea {
             mea = ea;
           }
-        }, None => {},
+        }
+        None => {}
       }
-      for k in long_i + 1 .. long_j {
+      for k in long_i + 1..long_j {
         let ea = mea_mat[long_i][k] + mea_mat[k + 1][long_j];
         if ea > mea {
           mea = ea;
@@ -62,15 +67,21 @@ where
   while pos_pair_stack.len() > 0 {
     let pos_pair = pos_pair_stack.pop().unwrap();
     let (i, j) = pos_pair;
-    if j <= i {continue;}
+    if j <= i {
+      continue;
+    }
     let (long_i, long_j) = (i.to_usize().unwrap(), j.to_usize().unwrap());
     let mea = mea_mat[long_i][long_j];
-    if mea == 0. {continue;}
+    if mea == 0. {
+      continue;
+    }
     if mea == mea_mat[long_i + 1][long_j] {
       pos_pair_stack.push((i + T::one(), j));
     } else if mea == mea_mat[long_i][long_j - 1] {
       pos_pair_stack.push((i, j - T::one()));
-    } else if bpp_mat.contains_key(&pos_pair) && mea == mea_mat[long_i + 1][long_j - 1] + gamma_plus_1 * bpp_mat[&pos_pair] - 1. {
+    } else if bpp_mat.contains_key(&pos_pair)
+      && mea == mea_mat[long_i + 1][long_j - 1] + gamma_plus_1 * bpp_mat[&pos_pair] - 1.
+    {
       pos_pair_stack.push((i + T::one(), j - T::one()));
       mea_ss.bp_pos_pairs.push(pos_pair);
     } else {

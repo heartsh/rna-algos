@@ -1,5 +1,5 @@
-use utils::*;
 use compiled_seq_align_params::*;
+use utils::*;
 
 #[derive(Clone, Debug)]
 pub struct AlignFeatureCountSets {
@@ -46,12 +46,12 @@ impl AlignFeatureCountSets {
     self.init_match_count = INIT_MATCH_SCORE;
     self.init_insert_count = INIT_INSERT_SCORE;
     let len = self.insert_counts.len();
-    for i in 0 .. len {
+    for i in 0..len {
       self.insert_counts[i] = INSERT_SCORES[i];
     }
     let len = self.align_count_mat.len();
-    for i in 0 .. len {
-      for j in 0 .. len {
+    for i in 0..len {
+      for j in 0..len {
         self.align_count_mat[i][j] = MATCH_SCORE_MAT[i][j];
       }
     }
@@ -72,17 +72,23 @@ impl SaPartFuncMats {
   }
 }
 
-pub fn durbin_algo(seq_pair: &SeqPair, align_feature_score_sets: &AlignFeatureCountSets,) -> ProbMat {
+pub fn durbin_algo(
+  seq_pair: &SeqPair,
+  align_feature_score_sets: &AlignFeatureCountSets,
+) -> ProbMat {
   let seq_len_pair = (seq_pair.0.len(), seq_pair.1.len());
   let sa_part_func_mats = get_sa_part_func_mats(seq_pair, align_feature_score_sets);
   get_match_prob_mat(&sa_part_func_mats, &seq_len_pair, align_feature_score_sets)
 }
 
-pub fn get_sa_part_func_mats(seq_pair: &SeqPair, align_feature_score_sets: &AlignFeatureCountSets,) -> SaPartFuncMats {
+pub fn get_sa_part_func_mats(
+  seq_pair: &SeqPair,
+  align_feature_score_sets: &AlignFeatureCountSets,
+) -> SaPartFuncMats {
   let seq_len_pair = (seq_pair.0.len(), seq_pair.1.len());
   let mut sa_part_func_mats = SaPartFuncMats::new(&seq_len_pair);
-  for i in 0 .. seq_len_pair.0 - 1 {
-    for j in 0 .. seq_len_pair.1 - 1 {
+  for i in 0..seq_len_pair.0 - 1 {
+    for j in 0..seq_len_pair.1 - 1 {
       if i == 0 && j == 0 {
         sa_part_func_mats.forward_part_func_mat_match[i][j] = 0.;
         continue;
@@ -92,11 +98,18 @@ pub fn get_sa_part_func_mats(seq_pair: &SeqPair, align_feature_score_sets: &Alig
         let char_pair = (seq_pair.0[i], seq_pair.1[j]);
         let match_score = align_feature_score_sets.align_count_mat[char_pair.0][char_pair.1];
         let is_begin = (i - 1, j - 1) == (0, 0);
-        let term = sa_part_func_mats.forward_part_func_mat_match[i - 1][j - 1] + if is_begin {align_feature_score_sets.init_match_count} else {align_feature_score_sets.match_2_match_count};
+        let term = sa_part_func_mats.forward_part_func_mat_match[i - 1][j - 1]
+          + if is_begin {
+            align_feature_score_sets.init_match_count
+          } else {
+            align_feature_score_sets.match_2_match_count
+          };
         logsumexp(&mut sum, term);
-        let term = sa_part_func_mats.forward_part_func_mat_insert[i - 1][j - 1] + align_feature_score_sets.match_2_insert_count;
+        let term = sa_part_func_mats.forward_part_func_mat_insert[i - 1][j - 1]
+          + align_feature_score_sets.match_2_insert_count;
         logsumexp(&mut sum, term);
-        let term = sa_part_func_mats.forward_part_func_mat_del[i - 1][j - 1] + align_feature_score_sets.match_2_insert_count;
+        let term = sa_part_func_mats.forward_part_func_mat_del[i - 1][j - 1]
+          + align_feature_score_sets.match_2_insert_count;
         logsumexp(&mut sum, term);
         sa_part_func_mats.forward_part_func_mat_match[i][j] = sum + match_score;
       }
@@ -105,9 +118,15 @@ pub fn get_sa_part_func_mats(seq_pair: &SeqPair, align_feature_score_sets: &Alig
         let insert_score = align_feature_score_sets.insert_counts[chr];
         let is_begin = (i - 1, j) == (0, 0);
         let mut sum = NEG_INFINITY;
-        let term = sa_part_func_mats.forward_part_func_mat_match[i - 1][j] + if is_begin {align_feature_score_sets.init_insert_count} else {align_feature_score_sets.match_2_insert_count};
+        let term = sa_part_func_mats.forward_part_func_mat_match[i - 1][j]
+          + if is_begin {
+            align_feature_score_sets.init_insert_count
+          } else {
+            align_feature_score_sets.match_2_insert_count
+          };
         logsumexp(&mut sum, term);
-        let term = sa_part_func_mats.forward_part_func_mat_insert[i - 1][j] + align_feature_score_sets.insert_extend_count;
+        let term = sa_part_func_mats.forward_part_func_mat_insert[i - 1][j]
+          + align_feature_score_sets.insert_extend_count;
         logsumexp(&mut sum, term);
         sa_part_func_mats.forward_part_func_mat_insert[i][j] = sum + insert_score;
       }
@@ -116,16 +135,22 @@ pub fn get_sa_part_func_mats(seq_pair: &SeqPair, align_feature_score_sets: &Alig
         let insert_score = align_feature_score_sets.insert_counts[chr];
         let is_begin = (i, j - 1) == (0, 0);
         let mut sum = NEG_INFINITY;
-        let term = sa_part_func_mats.forward_part_func_mat_match[i][j - 1] + if is_begin {align_feature_score_sets.init_insert_count} else {align_feature_score_sets.match_2_insert_count};
+        let term = sa_part_func_mats.forward_part_func_mat_match[i][j - 1]
+          + if is_begin {
+            align_feature_score_sets.init_insert_count
+          } else {
+            align_feature_score_sets.match_2_insert_count
+          };
         logsumexp(&mut sum, term);
-        let term = sa_part_func_mats.forward_part_func_mat_del[i][j - 1] + align_feature_score_sets.insert_extend_count;
+        let term = sa_part_func_mats.forward_part_func_mat_del[i][j - 1]
+          + align_feature_score_sets.insert_extend_count;
         logsumexp(&mut sum, term);
         sa_part_func_mats.forward_part_func_mat_del[i][j] = sum + insert_score;
       }
     }
   }
-  for i in (1 .. seq_len_pair.0).rev() {
-    for j in (1 .. seq_len_pair.1).rev() {
+  for i in (1..seq_len_pair.0).rev() {
+    for j in (1..seq_len_pair.1).rev() {
       if i == seq_len_pair.0 - 1 && j == seq_len_pair.1 - 1 {
         sa_part_func_mats.backward_part_func_mat_match[i][j] = 0.;
         continue;
@@ -135,11 +160,18 @@ pub fn get_sa_part_func_mats(seq_pair: &SeqPair, align_feature_score_sets: &Alig
         let char_pair = (seq_pair.0[i], seq_pair.1[j]);
         let match_score = align_feature_score_sets.align_count_mat[char_pair.0][char_pair.1];
         let is_end = (i + 1, j + 1) == (seq_len_pair.0 - 1, seq_len_pair.1 - 1);
-        let term = sa_part_func_mats.backward_part_func_mat_match[i + 1][j + 1] + if is_end {0.} else {align_feature_score_sets.match_2_match_count};
+        let term = sa_part_func_mats.backward_part_func_mat_match[i + 1][j + 1]
+          + if is_end {
+            0.
+          } else {
+            align_feature_score_sets.match_2_match_count
+          };
         logsumexp(&mut sum, term);
-        let term = sa_part_func_mats.backward_part_func_mat_insert[i + 1][j + 1] + align_feature_score_sets.match_2_insert_count;
+        let term = sa_part_func_mats.backward_part_func_mat_insert[i + 1][j + 1]
+          + align_feature_score_sets.match_2_insert_count;
         logsumexp(&mut sum, term);
-        let term = sa_part_func_mats.backward_part_func_mat_del[i + 1][j + 1] + align_feature_score_sets.match_2_insert_count;
+        let term = sa_part_func_mats.backward_part_func_mat_del[i + 1][j + 1]
+          + align_feature_score_sets.match_2_insert_count;
         logsumexp(&mut sum, term);
         sa_part_func_mats.backward_part_func_mat_match[i][j] = sum + match_score;
       }
@@ -148,9 +180,15 @@ pub fn get_sa_part_func_mats(seq_pair: &SeqPair, align_feature_score_sets: &Alig
         let insert_score = align_feature_score_sets.insert_counts[chr];
         let is_end = (i + 1, j) == (seq_len_pair.0 - 1, seq_len_pair.1 - 1);
         let mut sum = NEG_INFINITY;
-        let term = sa_part_func_mats.backward_part_func_mat_match[i + 1][j] + if is_end {0.} else {align_feature_score_sets.match_2_insert_count};
+        let term = sa_part_func_mats.backward_part_func_mat_match[i + 1][j]
+          + if is_end {
+            0.
+          } else {
+            align_feature_score_sets.match_2_insert_count
+          };
         logsumexp(&mut sum, term);
-        let term = sa_part_func_mats.backward_part_func_mat_insert[i + 1][j] + align_feature_score_sets.insert_extend_count;
+        let term = sa_part_func_mats.backward_part_func_mat_insert[i + 1][j]
+          + align_feature_score_sets.insert_extend_count;
         logsumexp(&mut sum, term);
         sa_part_func_mats.backward_part_func_mat_insert[i][j] = sum + insert_score;
       }
@@ -159,9 +197,15 @@ pub fn get_sa_part_func_mats(seq_pair: &SeqPair, align_feature_score_sets: &Alig
         let insert_score = align_feature_score_sets.insert_counts[chr];
         let is_end = (i, j + 1) == (seq_len_pair.0 - 1, seq_len_pair.1 - 1);
         let mut sum = NEG_INFINITY;
-        let term = sa_part_func_mats.backward_part_func_mat_match[i][j + 1] + if is_end {0.} else {align_feature_score_sets.match_2_insert_count};
+        let term = sa_part_func_mats.backward_part_func_mat_match[i][j + 1]
+          + if is_end {
+            0.
+          } else {
+            align_feature_score_sets.match_2_insert_count
+          };
         logsumexp(&mut sum, term);
-        let term = sa_part_func_mats.backward_part_func_mat_del[i][j + 1] + align_feature_score_sets.insert_extend_count;
+        let term = sa_part_func_mats.backward_part_func_mat_del[i][j + 1]
+          + align_feature_score_sets.insert_extend_count;
         logsumexp(&mut sum, term);
         sa_part_func_mats.backward_part_func_mat_del[i][j] = sum + insert_score;
       }
@@ -170,21 +214,38 @@ pub fn get_sa_part_func_mats(seq_pair: &SeqPair, align_feature_score_sets: &Alig
   sa_part_func_mats
 }
 
-fn get_match_prob_mat(sa_part_func_mats: &SaPartFuncMats, seq_len_pair: &(usize, usize), align_feature_score_sets: &AlignFeatureCountSets,) -> ProbMat {
+fn get_match_prob_mat(
+  sa_part_func_mats: &SaPartFuncMats,
+  seq_len_pair: &(usize, usize),
+  align_feature_score_sets: &AlignFeatureCountSets,
+) -> ProbMat {
   let mut match_prob_mat = vec![vec![0.; seq_len_pair.1]; seq_len_pair.0];
-  let mut part_func = sa_part_func_mats.forward_part_func_mat_match[seq_len_pair.0 - 2][seq_len_pair.1 - 2];
-  logsumexp(&mut part_func, sa_part_func_mats.forward_part_func_mat_insert[seq_len_pair.0 - 2][seq_len_pair.1 - 2]);
-  logsumexp(&mut part_func, sa_part_func_mats.forward_part_func_mat_del[seq_len_pair.0 - 2][seq_len_pair.1 - 2]);
-  for i in 1 .. seq_len_pair.0 - 1 {
-    for j in 1 .. seq_len_pair.1 - 1 {
+  let mut part_func =
+    sa_part_func_mats.forward_part_func_mat_match[seq_len_pair.0 - 2][seq_len_pair.1 - 2];
+  logsumexp(
+    &mut part_func,
+    sa_part_func_mats.forward_part_func_mat_insert[seq_len_pair.0 - 2][seq_len_pair.1 - 2],
+  );
+  logsumexp(
+    &mut part_func,
+    sa_part_func_mats.forward_part_func_mat_del[seq_len_pair.0 - 2][seq_len_pair.1 - 2],
+  );
+  for i in 1..seq_len_pair.0 - 1 {
+    for j in 1..seq_len_pair.1 - 1 {
       let mut sum = NEG_INFINITY;
       let forward_part_func = sa_part_func_mats.forward_part_func_mat_match[i][j];
       let is_end = (i + 1, j + 1) == (seq_len_pair.0 - 1, seq_len_pair.1 - 1);
-      let term = if is_end {0.} else {align_feature_score_sets.match_2_match_count} + sa_part_func_mats.backward_part_func_mat_match[i + 1][j + 1];
+      let term = if is_end {
+        0.
+      } else {
+        align_feature_score_sets.match_2_match_count
+      } + sa_part_func_mats.backward_part_func_mat_match[i + 1][j + 1];
       logsumexp(&mut sum, term);
-      let term = align_feature_score_sets.match_2_insert_count + sa_part_func_mats.backward_part_func_mat_insert[i + 1][j + 1];
+      let term = align_feature_score_sets.match_2_insert_count
+        + sa_part_func_mats.backward_part_func_mat_insert[i + 1][j + 1];
       logsumexp(&mut sum, term);
-      let term = align_feature_score_sets.match_2_insert_count + sa_part_func_mats.backward_part_func_mat_del[i + 1][j + 1];
+      let term = align_feature_score_sets.match_2_insert_count
+        + sa_part_func_mats.backward_part_func_mat_del[i + 1][j + 1];
       logsumexp(&mut sum, term);
       let match_prob = expf(forward_part_func + sum - part_func);
       debug_assert!(0. <= match_prob && match_prob <= 1.);

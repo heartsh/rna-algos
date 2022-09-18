@@ -7,14 +7,26 @@ fn main() {
   let args = env::args().collect::<Args>();
   let program_name = args[0].clone();
   let mut opts = Options::new();
-  opts.reqopt("i", "input_file_path", "An input FASTA file path containing RNA sequences", "STR");
+  opts.reqopt(
+    "i",
+    "input_file_path",
+    "An input FASTA file path containing RNA sequences",
+    "STR",
+  );
   opts.reqopt("o", "output_file_path", "An output file path", "STR");
-  opts.optopt("t", "num_of_threads", "The number of threads in multithreading (Uses the number of the threads of this computer by default)", "UINT");
-  opts.optflag("c", "uses_contra_model", "Use the CONTRAfold model instead of Turner's model to score RNA secondary structures");
+  opts.optopt("t", "num_of_threads", "The number of threads in multithreading (Use all the threads of this computer by default)", "UINT");
+  opts.optflag(
+    "c",
+    "use_contra_model",
+    "Use the CONTRAfold model instead of Turner's model to score RNA secondary structures",
+  );
   opts.optflag("h", "help", "Print a help menu");
-  let matches = match opts.parse(&args[1 ..]) {
-    Ok(opt) => {opt}
-    Err(failure) => {print_program_usage(&program_name, &opts); panic!(failure.to_string())}
+  let matches = match opts.parse(&args[1..]) {
+    Ok(opt) => opt,
+    Err(failure) => {
+      print_program_usage(&program_name, &opts);
+      panic!(failure.to_string())
+    }
   };
   if matches.opt_present("h") {
     print_program_usage(&program_name, &opts);
@@ -29,7 +41,7 @@ fn main() {
   } else {
     num_cpus::get() as NumOfThreads
   };
-  let uses_contra_model = matches.opt_present("c");
+  let use_contra_model = matches.opt_present("c");
   let fasta_file_reader = Reader::from_file(Path::new(&input_file_path)).unwrap();
   let mut fasta_records = FastaRecords::new();
   for fasta_record in fasta_file_reader.records() {
@@ -48,10 +60,22 @@ fn main() {
       scope.execute(move || {
         let seq_len = fasta_record.seq.len();
         if seq_len <= u8::MAX as usize {
-          let bpp_mat = mccaskill_algo::<u8>(&fasta_record.seq[..], uses_contra_model, false, ref_2_struct_feature_score_sets).0;
+          let bpp_mat = mccaskill_algo::<u8>(
+            &fasta_record.seq[..],
+            use_contra_model,
+            false,
+            ref_2_struct_feature_score_sets,
+          )
+          .0;
           *bpp_mat_str = convert_bpp_mat_2_str(&bpp_mat);
         } else {
-          let bpp_mat = mccaskill_algo::<u16>(&fasta_record.seq[..], uses_contra_model, false, ref_2_struct_feature_score_sets).0;
+          let bpp_mat = mccaskill_algo::<u16>(
+            &fasta_record.seq[..],
+            use_contra_model,
+            false,
+            ref_2_struct_feature_score_sets,
+          )
+          .0;
           *bpp_mat_str = convert_bpp_mat_2_str(&bpp_mat);
         }
       });
@@ -69,7 +93,7 @@ fn main() {
 
 fn convert_bpp_mat_2_str<T>(bpp_mat: &SparseProbMat<T>) -> String
 where
-    T: Display + Copy,
+  T: Display + Copy,
 {
   let mut bpp_mat_str = String::new();
   for (&(i, j), &bpp) in bpp_mat.iter() {

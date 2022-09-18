@@ -7,13 +7,21 @@ fn main() {
   let args = env::args().collect::<Args>();
   let program_name = args[0].clone();
   let mut opts = Options::new();
-  opts.reqopt("i", "input_file_path", "An input FASTA file path containing RNA sequences", "STR");
+  opts.reqopt(
+    "i",
+    "input_file_path",
+    "An input FASTA file path containing RNA sequences",
+    "STR",
+  );
   opts.reqopt("o", "output_file_path", "An output file path", "STR");
-  opts.optopt("t", "num_of_threads", "The number of threads in multithreading (Uses the number of the threads of this computer by default)", "UINT");
+  opts.optopt("t", "num_of_threads", "The number of threads in multithreading (Use all the threads of this computer by default)", "UINT");
   opts.optflag("h", "help", "Print a help menu");
-  let matches = match opts.parse(&args[1 ..]) {
-    Ok(opt) => {opt}
-    Err(failure) => {print_program_usage(&program_name, &opts); panic!(failure.to_string())}
+  let matches = match opts.parse(&args[1..]) {
+    Ok(opt) => opt,
+    Err(failure) => {
+      print_program_usage(&program_name, &opts);
+      panic!(failure.to_string())
+    }
   };
   if matches.opt_present("h") {
     print_program_usage(&program_name, &opts);
@@ -42,8 +50,8 @@ fn main() {
   let num_of_fasta_records = fasta_records.len();
   let mut thread_pool = Pool::new(num_of_threads);
   let mut align_prob_mats_with_rna_id_pairs = ProbMatsWithRnaIdPairs::default();
-  for rna_id_1 in 0 .. num_of_fasta_records {
-    for rna_id_2 in rna_id_1 + 1 .. num_of_fasta_records {
+  for rna_id_1 in 0..num_of_fasta_records {
+    for rna_id_2 in rna_id_1 + 1..num_of_fasta_records {
       let rna_id_pair = (rna_id_1, rna_id_2);
       align_prob_mats_with_rna_id_pairs.insert(rna_id_pair, ProbMat::new());
     }
@@ -51,7 +59,10 @@ fn main() {
   let ref ref_2_align_feature_score_sets = align_feature_score_sets;
   thread_pool.scoped(|scope| {
     for (rna_id_pair, align_prob_mat) in &mut align_prob_mats_with_rna_id_pairs {
-      let seq_pair = (&fasta_records[rna_id_pair.0].seq[..], &fasta_records[rna_id_pair.1].seq[..]);
+      let seq_pair = (
+        &fasta_records[rna_id_pair.0].seq[..],
+        &fasta_records[rna_id_pair.1].seq[..],
+      );
       scope.execute(move || {
         *align_prob_mat = durbin_algo(&seq_pair, ref_2_align_feature_score_sets);
       });

@@ -7,11 +7,19 @@ fn main() {
   let args = env::args().collect::<Args>();
   let program_name = args[0].clone();
   let mut opts = Options::new();
-  opts.reqopt("i", "input_file_path", "An input file path containing trained CONTRAlign scoring parameters", "STR");
+  opts.reqopt(
+    "i",
+    "input_file_path",
+    "A CONTRAlign parameter file path",
+    "STR",
+  );
   opts.optflag("h", "help", "Print a help menu");
-  let matches = match opts.parse(&args[1 ..]) {
-    Ok(opt) => {opt}
-    Err(failure) => {print_program_usage(&program_name, &opts); panic!(failure.to_string())}
+  let matches = match opts.parse(&args[1..]) {
+    Ok(opt) => opt,
+    Err(failure) => {
+      print_program_usage(&program_name, &opts);
+      panic!(failure.to_string())
+    }
   };
   if matches.opt_present("h") {
     print_program_usage(&program_name, &opts);
@@ -35,7 +43,11 @@ fn main() {
     let feature_weight = sublines.next().unwrap().parse().unwrap();
     if feature_name.eq("match_to_match") {
       match_2_match_score = feature_weight;
-    } else if feature_name.eq("match_to_insert") || feature_name.eq("insert_extend") || feature_name.eq("insert_change") || feature_name.eq("insert") {
+    } else if feature_name.eq("match_to_insert")
+      || feature_name.eq("insert_extend")
+      || feature_name.eq("insert_change")
+      || feature_name.eq("insert")
+    {
     } else if feature_name.eq("match_to_insert2") {
       match_2_insert_score = feature_weight;
     } else if feature_name.eq("insert2_extend") {
@@ -69,13 +81,37 @@ fn main() {
   let output_file_path = Path::new("./src/compiled_seq_align_params.rs");
   let mut writer_2_output_file = BufWriter::new(File::create(&output_file_path).unwrap());
   let mut buf = format!("use utils::*;\n");
-  buf += &format!("pub const MATCH_SCORE_MAT: MatchScoreMat = {:?};\n", &match_score_mat);
-  buf += &format!("pub const INSERT_SCORES: InsertScores = {:?};\n", &insert_scores);
-  buf += &format!("pub const INIT_MATCH_SCORE: Prob = {};\n", &init_match_score);
-  buf += &format!("pub const INIT_INSERT_SCORE: Prob = {};\n", init_insert_score);
-  buf += &format!("pub const MATCH_2_MATCH_SCORE: Prob = {};\n", match_2_match_score);
-  buf += &format!("pub const MATCH_2_INSERT_SCORE: Prob = {};\n", match_2_insert_score);
-  buf += &format!("pub const INSERT_EXTEND_SCORE: Prob = {};\n", insert_extend_score);
-  buf += &format!("pub const INSERT_SWITCH_SCORE: Prob = {};\n", insert_switch_score);
+  buf += &format!(
+    "pub const MATCH_SCORE_MAT: MatchScoreMat = {:?};\n",
+    &match_score_mat
+  );
+  buf += &format!(
+    "pub const INSERT_SCORES: InsertScores = {:?};\n",
+    &insert_scores
+  );
+  buf += &format!(
+    "pub const INIT_MATCH_SCORE: Prob = {};\n",
+    &init_match_score
+  );
+  buf += &format!(
+    "pub const INIT_INSERT_SCORE: Prob = {};\n",
+    init_insert_score
+  );
+  buf += &format!(
+    "pub const MATCH_2_MATCH_SCORE: Prob = {};\n",
+    match_2_match_score
+  );
+  buf += &format!(
+    "pub const MATCH_2_INSERT_SCORE: Prob = {};\n",
+    match_2_insert_score
+  );
+  buf += &format!(
+    "pub const INSERT_EXTEND_SCORE: Prob = {};\n",
+    insert_extend_score
+  );
+  buf += &format!(
+    "pub const INSERT_SWITCH_SCORE: Prob = {};\n",
+    insert_switch_score
+  );
   let _ = writer_2_output_file.write_all(buf.as_bytes());
 }
