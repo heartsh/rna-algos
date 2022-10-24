@@ -104,7 +104,7 @@ fn multi_threaded_centroid_estimator<T>(
   use_contra_model: bool,
   gamma: Prob,
 ) where
-  T: Unsigned + PrimInt + Hash + FromPrimitive + Integer + Ord + Display + Sync + Send,
+  T: HashIndex,
 {
   let mut struct_feature_score_sets = StructFeatureCountSets::new(0.);
   struct_feature_score_sets.transfer();
@@ -157,7 +157,7 @@ fn compute_and_write_mea_sss<T>(
   gamma: Prob,
   output_file_path: &Path,
 ) where
-  T: Unsigned + PrimInt + Hash + FromPrimitive + Integer + Ord + Display,
+  T: HashIndex,
 {
   let num_of_fasta_records = fasta_records.len();
   let mut buf = String::new();
@@ -184,7 +184,7 @@ fn compute_and_write_mea_sss<T>(
 
 fn get_mea_ss_str<T>(mea_ss: &MeaSs<T>, seq_len: usize) -> MeaSsStr
 where
-  T: Unsigned + PrimInt + Hash + FromPrimitive + Integer + Ord,
+  T: HashIndex,
 {
   let mut mea_ss_str = vec![UNPAIRING_BASE; seq_len];
   for &(i, j) in &mea_ss.bp_pos_pairs {

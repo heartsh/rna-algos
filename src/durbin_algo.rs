@@ -6,6 +6,7 @@ pub struct AlignFeatureCountSets {
   pub match_2_match_count: FeatureCount,
   pub match_2_insert_count: FeatureCount,
   pub insert_extend_count: FeatureCount,
+  pub insert_switch_count: FeatureCount,
   pub init_match_count: FeatureCount,
   pub init_insert_count: FeatureCount,
   pub insert_counts: InsertCounts,
@@ -33,6 +34,7 @@ impl AlignFeatureCountSets {
       match_2_insert_count: init_val,
       init_match_count: init_val,
       insert_extend_count: init_val,
+      insert_switch_count: init_val,
       init_insert_count: init_val,
       insert_counts: init_vals,
       align_count_mat: twod_mat,
@@ -43,6 +45,7 @@ impl AlignFeatureCountSets {
     self.match_2_match_count = MATCH_2_MATCH_SCORE;
     self.match_2_insert_count = MATCH_2_INSERT_SCORE;
     self.insert_extend_count = INSERT_EXTEND_SCORE;
+    self.insert_switch_count = INSERT_SWITCH_SCORE;
     self.init_match_count = INIT_MATCH_SCORE;
     self.init_insert_count = INIT_INSERT_SCORE;
     let len = self.insert_counts.len();

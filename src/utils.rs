@@ -21,6 +21,27 @@ pub use std::io::{BufReader, BufWriter};
 pub use std::path::Path;
 pub use std::str::from_utf8_unchecked;
 
+pub trait HashIndex:
+  Unsigned
+  + PrimInt
+  + Hash
+  + FromPrimitive
+  + ToPrimitive
+  + Clone
+  + Integer
+  + Eq
+  + One
+  + Ord
+  + Display
+  + Sync
+  + Send
+{
+}
+impl<T: Unsigned + PrimInt + Hash + FromPrimitive + Integer + One + Ord + Display + Sync + Send>
+  HashIndex for T
+{
+}
+
 pub type PosPair<T> = (T, T);
 pub type PosQuadruple<T> = (T, T, T, T);
 pub type Num = usize;

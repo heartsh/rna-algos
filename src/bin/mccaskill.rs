@@ -98,7 +98,7 @@ fn main() {
 
 fn convert_bpp_mat_2_str<T>(bpp_mat: &SparseProbMat<T>) -> String
 where
-  T: Display + Copy,
+  T: HashIndex,
 {
   let mut bpp_mat_str = String::new();
   for (&(i, j), &bpp) in bpp_mat.iter() {

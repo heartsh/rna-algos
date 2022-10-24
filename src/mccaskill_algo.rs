@@ -233,7 +233,7 @@ impl<T: Hash> SsPartFuncMats<T> {
   }
 }
 
-impl<T: Unsigned + PrimInt + Hash + One> SsFreeEnergyMats<T> {
+impl<T: HashIndex> SsFreeEnergyMats<T> {
   pub fn new() -> SsFreeEnergyMats<T> {
     let free_energy_mat = SparseFreeEnergyMat::<T>::default();
     let free_energy_4d_mat = FreeEnergy4dMat::<T>::default();
@@ -253,7 +253,7 @@ pub fn mccaskill_algo<T>(
   struct_feature_score_sets: &StructFeatureCountSets,
 ) -> (SparseProbMat<T>, SsFreeEnergyMats<T>)
 where
-  T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
+  T: HashIndex,
 {
   let seq_len = seq.len();
   let mut ss_free_energy_mats = SsFreeEnergyMats::<T>::new();
@@ -288,7 +288,7 @@ pub fn get_ss_part_func_mats<T>(
   ss_free_energy_mats: &mut SsFreeEnergyMats<T>,
 ) -> SsPartFuncMats<T>
 where
-  T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
+  T: HashIndex,
 {
   let mut ss_part_func_mats = SsPartFuncMats::<T>::new(seq_len);
   let seq_len = T::from_usize(seq_len).unwrap();
@@ -417,7 +417,7 @@ pub fn get_ss_part_func_mats_contra<T>(
   struct_feature_score_sets: &StructFeatureCountSets,
 ) -> SsPartFuncMats<T>
 where
-  T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
+  T: HashIndex,
 {
   let mut ss_part_func_mats = SsPartFuncMats::<T>::new(seq_len);
   let short_seq_len = T::from_usize(seq_len).unwrap();
@@ -584,7 +584,7 @@ fn get_base_pairing_prob_mat<T>(
   ss_free_energy_mats: &SsFreeEnergyMats<T>,
 ) -> SparseProbMat<T>
 where
-  T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
+  T: HashIndex,
 {
   let ss_part_func = ss_part_func_mats.part_func_mat[0][seq_len - 1];
   let mut bpp_mat = SparseProbMat::<T>::default();
@@ -718,7 +718,7 @@ fn get_base_pairing_prob_mat_contra<T>(
   struct_feature_score_sets: &StructFeatureCountSets,
 ) -> SparseProbMat<T>
 where
-  T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
+  T: HashIndex,
 {
   let ss_part_func = ss_part_func_mats.part_func_mat[0][seq_len - 1];
   let mut bpp_mat = SparseProbMat::<T>::default();

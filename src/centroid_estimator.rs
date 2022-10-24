@@ -20,13 +20,13 @@ impl<T> MeaSs<T> {
   }
 }
 
-pub fn centroid_estimator<T: Hash>(
+pub fn centroid_estimator<T: HashIndex>(
   bpp_mat: &SparseProbMat<T>,
   seq_len: usize,
   gamma: Prob,
 ) -> MeaSs<T>
 where
-  T: Unsigned + PrimInt + Hash + FromPrimitive + Integer,
+  T: HashIndex,
 {
   let gamma_plus_1 = gamma + 1.;
   let mut mea_mat = vec![vec![0.; seq_len]; seq_len];
