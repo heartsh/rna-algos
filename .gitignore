@@ -4,10 +4,11 @@ target
 !*.rs
 !*.py
 !*.yml
+!*.png
+!*.fa
 !Cargo.toml
 !rustfmt.toml
 !.gitignore
 !README.md
 !assets/rfam_seed_stas_v14.3.sth
-!*.png
 !assets/contralign.params.rna
