@@ -177,6 +177,10 @@ pub const CONSPROB_MIN_HAIRPIN_LOOP_SPAN: usize = CONSPROB_MIN_HAIRPIN_LOOP_LEN 
 pub const CONSPROB_MAX_INTERIOR_LOOP_LEN_EXPLICIT: usize = 4;
 pub const CONSPROB_MAX_INTERIOR_LOOP_LEN_SYMM: usize = CONSPROB_MAX_TWOLOOP_LEN / 2;
 pub const CONSPROB_MAX_INTERIOR_LOOP_LEN_ASYMM: usize = CONSPROB_MAX_TWOLOOP_LEN - 2;
+pub const EXAMPLE_FASTA_FILE_PATH: &str = "assets/sampled_trnas.fa";
+pub const EPSILON: Prob = 0.00_1;
+pub const PROB_BOUND_LOWER: Prob = -EPSILON;
+pub const PROB_BOUND_UPPER: Prob = 1. + EPSILON;
 
 impl FastaRecord {
   pub fn origin() -> FastaRecord {

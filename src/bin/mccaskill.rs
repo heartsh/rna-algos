@@ -58,7 +58,7 @@ fn main() {
   let mut thread_pool = Pool::new(num_of_threads);
   let mut struct_feature_score_sets = StructFeatureCountSets::new(0.);
   struct_feature_score_sets.transfer();
-  let ref ref_2_struct_feature_score_sets = struct_feature_score_sets;
+  let ref_2_struct_feature_score_sets = &struct_feature_score_sets;
   let mut bpp_mat_strs = vec![String::new(); num_of_fasta_records];
   thread_pool.scoped(|scope| {
     for (bpp_mat_str, fasta_record) in multizip((bpp_mat_strs.iter_mut(), fasta_records.iter())) {
@@ -86,11 +86,11 @@ fn main() {
       });
     }
   });
-  let mut buf_4_writer_2_bpp_mat_file = format!("# Format = >{{RNA sequence id}} {{line break}} {{basepairing left nucleotide}}, {{basepairing right nucleotide}}, {{basepairing probability}} ...");
+  let mut buf_4_writer_2_bpp_mat_file = "# Format = >{RNA sequence id} {line break} {basepairing left nucleotide}, {basepairing right nucleotide}, {basepairing probability} ...".to_string();
   let mut writer_2_bpp_mat_file = BufWriter::new(File::create(output_file_path).unwrap());
   for (rna_id, bpp_mat_str) in bpp_mat_strs.iter().enumerate() {
     let mut buf_4_rna_id = format!("\n\n>{}\n", rna_id);
-    buf_4_rna_id.push_str(&bpp_mat_str);
+    buf_4_rna_id.push_str(bpp_mat_str);
     buf_4_writer_2_bpp_mat_file.push_str(&buf_4_rna_id);
   }
   let _ = writer_2_bpp_mat_file.write_all(buf_4_writer_2_bpp_mat_file.as_bytes());

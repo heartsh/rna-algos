@@ -79,8 +79,8 @@ fn main() {
     }
   }
   let output_file_path = Path::new("./src/compiled_seq_align_params.rs");
-  let mut writer_2_output_file = BufWriter::new(File::create(&output_file_path).unwrap());
-  let mut buf = format!("use utils::*;\n");
+  let mut writer_2_output_file = BufWriter::new(File::create(output_file_path).unwrap());
+  let mut buf = "use utils::*;\n".to_string();
   buf += &format!(
     "pub const MATCH_SCORE_MAT: MatchScoreMat = {:?};\n",
     &match_score_mat

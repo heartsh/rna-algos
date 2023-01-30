@@ -61,7 +61,7 @@ fn main() {
       align_prob_mats_with_rna_id_pairs.insert(rna_id_pair, ProbMat::new());
     }
   }
-  let ref ref_2_align_feature_score_sets = align_feature_score_sets;
+  let ref_2_align_feature_score_sets = &align_feature_score_sets;
   thread_pool.scoped(|scope| {
     for (rna_id_pair, align_prob_mat) in &mut align_prob_mats_with_rna_id_pairs {
       let seq_pair = (
@@ -73,7 +73,7 @@ fn main() {
       });
     }
   });
-  let mut buf_4_writer_2_align_prob_mat_file = format!("# Format = >{{RNA sequence id 1}},{{RNA sequence id 2}} {{line break}} {{nucleotide 1}}, {{nucleotide 2}}, {{nucletide matching probability}} ...");
+  let mut buf_4_writer_2_align_prob_mat_file = "# Format = >{RNA sequence id 1},{RNA sequence id 2} {line break} {nucleotide 1}, {nucleotide 2}, {nucletide matching probability} ...".to_string();
   let mut writer_2_align_prob_mat_file = BufWriter::new(File::create(output_file_path).unwrap());
   for (rna_id_pair, align_prob_mat) in &align_prob_mats_with_rna_id_pairs {
     let mut buf_4_rna_id_pair = format!("\n\n>{},{}\n", rna_id_pair.0, rna_id_pair.1);

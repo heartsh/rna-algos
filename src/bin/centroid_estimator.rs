@@ -108,12 +108,12 @@ fn multi_threaded_centroid_estimator<T>(
 {
   let mut struct_feature_score_sets = StructFeatureCountSets::new(0.);
   struct_feature_score_sets.transfer();
-  let ref ref_2_struct_feature_score_sets = struct_feature_score_sets;
+  let ref_2_struct_feature_score_sets = &struct_feature_score_sets;
   let num_of_fasta_records = fasta_records.len();
   let mut bpp_mats = vec![SparseProbMat::<T>::default(); num_of_fasta_records];
   thread_pool.scoped(|scope| {
     for (fasta_record, bpp_mat) in fasta_records.iter().zip(bpp_mats.iter_mut()) {
-      let ref seq = fasta_record.seq;
+      let seq = &fasta_record.seq;
       scope.execute(move || {
         *bpp_mat = mccaskill_algo::<T>(
           seq,
@@ -129,22 +129,16 @@ fn multi_threaded_centroid_estimator<T>(
     let _ = create_dir(output_dir_path);
   }
   if gamma != NEG_INFINITY {
-    let output_file_path = output_dir_path.join(&format!("gamma={}.fa", gamma));
+    let output_file_path = output_dir_path.join(format!("gamma={}.fa", gamma));
     compute_and_write_mea_sss::<T>(&bpp_mats, fasta_records, gamma, &output_file_path);
   } else {
     thread_pool.scoped(|scope| {
       for pow_of_2 in MIN_POW_OF_2..MAX_POW_OF_2 + 1 {
         let gamma = (2. as Prob).powi(pow_of_2);
-        let ref ref_2_bpp_mats = bpp_mats;
-        let ref ref_2_fasta_records = fasta_records;
-        let output_file_path = output_dir_path.join(&format!("gamma={}.fa", gamma));
+        let ref_2_bpp_mats = &bpp_mats;
+        let output_file_path = output_dir_path.join(format!("gamma={}.fa", gamma));
         scope.execute(move || {
-          compute_and_write_mea_sss::<T>(
-            ref_2_bpp_mats,
-            ref_2_fasta_records,
-            gamma,
-            &output_file_path,
-          );
+          compute_and_write_mea_sss::<T>(ref_2_bpp_mats, fasta_records, gamma, &output_file_path);
         });
       }
     });
@@ -163,8 +157,8 @@ fn compute_and_write_mea_sss<T>(
   let mut buf = String::new();
   let mut writer_2_output_file = BufWriter::new(File::create(output_file_path).unwrap());
   for (rna_id, fasta_record) in fasta_records.iter().enumerate() {
-    let ref bpp_mat = bpp_mats[rna_id];
-    let mea_ss = centroid_estimator::<T>(&bpp_mat, fasta_record.seq.len(), gamma);
+    let bpp_mat = &bpp_mats[rna_id];
+    let mea_ss = centroid_estimator::<T>(bpp_mat, fasta_record.seq.len(), gamma);
     let buf_4_rna_id = format!(">{}\n", rna_id)
       + &unsafe {
         String::from_utf8_unchecked(get_mea_ss_str::<T>(

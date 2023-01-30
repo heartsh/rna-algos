@@ -12,13 +12,19 @@ license = "MIT"
 rna-ss-params = "0.1"
 scoped_threadpool = "0.1"
 getopts = "0.2"
-bio = "0.20"
+bio = "1.1"
 num_cpus = "1.0"
 itertools = "0.10"
-time = "0.1"
 num = "0.3"
-hashbrown = "0.12"
+hashbrown = "0.13"
+
+[dev-dependencies]
+criterion = "0.3"
 
 [lib]
 path = "src/lib.rs"
 name = "rna_algos"
+
+[[bench]]
+name = "benches"
+harness = false
