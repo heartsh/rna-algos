@@ -11,6 +11,12 @@ pub type Poss<T> = Vec<T>;
 pub type PosSeqsWithPoss<T> = HashMap<T, Poss<T>>;
 pub type PosPairSeqsWithPosPairs<T> = HashMap<PosPair<T>, PosPairs<T>>;
 
+impl<T> Default for MeaSs<T> {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 impl<T> MeaSs<T> {
   pub fn new() -> MeaSs<T> {
     MeaSs {
@@ -44,14 +50,11 @@ where
         mea = ea;
       }
       let pos_pair = (i, j);
-      match bpp_mat.get(&pos_pair) {
-        Some(&bpp) => {
-          let ea = mea_mat[long_i + 1][long_j - 1] + gamma_plus_1 * bpp - 1.;
-          if ea > mea {
-            mea = ea;
-          }
+      if let Some(&bpp) = bpp_mat.get(&pos_pair) {
+        let ea = mea_mat[long_i + 1][long_j - 1] + gamma_plus_1 * bpp - 1.;
+        if ea > mea {
+          mea = ea;
         }
-        None => {}
       }
       for k in long_i + 1..long_j {
         let ea = mea_mat[long_i][k] + mea_mat[k + 1][long_j];
@@ -64,7 +67,7 @@ where
   }
   let mut mea_ss = MeaSs::<T>::new();
   let mut pos_pair_stack = vec![(T::zero(), seq_len - T::one())];
-  while pos_pair_stack.len() > 0 {
+  while !pos_pair_stack.is_empty() {
     let pos_pair = pos_pair_stack.pop().unwrap();
     let (i, j) = pos_pair;
     if j <= i {

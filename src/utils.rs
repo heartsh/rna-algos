@@ -152,23 +152,23 @@ pub type InteriorLoopLengthCountMat =
 
 pub const MAX_SPAN_OF_INDEX_PAIR_CLOSING_IL: usize = MAX_2_LOOP_LEN + 2;
 pub const MIN_SPAN_OF_INDEX_PAIR_CLOSING_ML: usize = MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL * 2 + 2;
-pub const SMALL_A: u8 = 'a' as u8;
-pub const BIG_A: u8 = 'A' as u8;
-pub const SMALL_C: u8 = 'c' as u8;
-pub const BIG_C: u8 = 'C' as u8;
-pub const SMALL_G: u8 = 'g' as u8;
-pub const BIG_G: u8 = 'G' as u8;
-pub const SMALL_U: u8 = 'u' as u8;
-pub const BIG_U: u8 = 'U' as u8;
-pub const LOGSUMEXP_THRES_UPPER: FreeEnergy = 11.8624794162;
+pub const SMALL_A: u8 = b'a';
+pub const BIG_A: u8 = b'A';
+pub const SMALL_C: u8 = b'c';
+pub const BIG_C: u8 = b'C';
+pub const SMALL_G: u8 = b'g';
+pub const BIG_G: u8 = b'G';
+pub const SMALL_U: u8 = b'u';
+pub const BIG_U: u8 = b'U';
+pub const LOGSUMEXP_THRES_UPPER: FreeEnergy = 11.862_479;
 pub const A: Base = 0;
 pub const C: Base = 1;
 pub const G: Base = 2;
 pub const U: Base = 3;
 pub const PSEUDO_BASE: Base = U + 1 as Base;
-pub const UNPAIRING_BASE: MeaSsChar = '.' as MeaSsChar;
-pub const BASE_PAIRING_LEFT_BASE: MeaSsChar = '(' as MeaSsChar;
-pub const BASE_PAIRING_RIGHT_BASE: MeaSsChar = ')' as MeaSsChar;
+pub const UNPAIRING_BASE: MeaSsChar = b'.';
+pub const BASE_PAIRING_LEFT_BASE: MeaSsChar = b'(';
+pub const BASE_PAIRING_RIGHT_BASE: MeaSsChar = b')';
 pub const NUM_OF_BASES: usize = 4;
 pub const CONSPROB_MAX_HAIRPIN_LOOP_LEN: usize = 30;
 pub const CONSPROB_MAX_TWOLOOP_LEN: usize = CONSPROB_MAX_HAIRPIN_LOOP_LEN;
@@ -189,11 +189,17 @@ impl FastaRecord {
       seq: Seq::new(),
     }
   }
-  pub fn new(fasta_id: FastaId, seq: Seq) -> FastaRecord {
+  pub fn new(input_fasta_id: FastaId, input_seq: Seq) -> FastaRecord {
     FastaRecord {
-      fasta_id: fasta_id,
-      seq: seq,
+      fasta_id: input_fasta_id,
+      seq: input_seq,
     }
+  }
+}
+
+impl<T> Default for SeqAlign<T> {
+  fn default() -> Self {
+    Self::new()
   }
 }
 
@@ -207,10 +213,7 @@ impl<T> SeqAlign<T> {
 }
 
 pub fn is_canonical(bp: &BasePair) -> bool {
-  match *bp {
-    AU | CG | GC | GU | UA | UG => true,
-    _ => false,
-  }
+  matches!(*bp, AU | CG | GC | GU | UA | UG)
 }
 
 pub fn get_hl_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize)) -> FreeEnergy {
@@ -447,7 +450,7 @@ pub fn get_ml_or_el_accessible_basepairing_fe(
   use_sentinel_nucs: bool,
 ) -> FreeEnergy {
   let seq_len = seq.len();
-  let five_prime_end = if use_sentinel_nucs { 1 } else { 0 };
+  let five_prime_end = usize::from(use_sentinel_nucs);
   let three_prime_end = seq_len - if use_sentinel_nucs { 2 } else { 1 };
   let accessible_bp = (seq[pp_accessible.0], seq[pp_accessible.1]);
   let fe = if pp_accessible.0 > five_prime_end && pp_accessible.1 < three_prime_end {
@@ -459,12 +462,12 @@ pub fn get_ml_or_el_accessible_basepairing_fe(
     THREE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[pp_accessible.1 + 1]]
   } else {
     0.
-  } + if is_au_or_gu(&accessible_bp) {
+  };
+  fe + if is_au_or_gu(&accessible_bp) {
     HELIX_AU_OR_GU_END_PENALTY_DELTA_FE
   } else {
     0.
-  };
-  fe
+  }
 }
 
 pub fn get_hl_fe_contra(
@@ -601,7 +604,7 @@ pub fn get_contra_junction_fe_multi(
   struct_feature_score_sets: &StructFeatureCountSets,
 ) -> FreeEnergy {
   let bp = (seq[pp.0], seq[pp.1]);
-  let five_prime_end = if use_sentinel_nucs { 1 } else { 0 };
+  let five_prime_end = usize::from(use_sentinel_nucs);
   let three_prime_end = seq_len - if use_sentinel_nucs { 2 } else { 1 };
   get_contra_helix_closing_fe(&bp, struct_feature_score_sets)
     + if pp.0 < three_prime_end {
@@ -646,20 +649,14 @@ pub fn get_contra_terminal_mismatch_fe(
 }
 
 pub fn is_rna_base(base: Base) -> bool {
-  match base {
-    A => true,
-    U => true,
-    G => true,
-    C => true,
-    _ => false,
-  }
+  matches!(base, A | U | G | C)
 }
 
 pub fn is_au_or_gu(bp: &BasePair) -> bool {
   *bp == AU || *bp == UA || *bp == GU || *bp == UG
 }
 
-pub fn convert<'a>(seq: &'a [u8]) -> Seq {
+pub fn convert(seq: &[u8]) -> Seq {
   let mut new_seq = Seq::new();
   for &c in seq {
     let new_base = match c {
@@ -668,8 +665,7 @@ pub fn convert<'a>(seq: &'a [u8]) -> Seq {
       SMALL_G | BIG_G => G,
       SMALL_U | BIG_U => U,
       _ => {
-        assert!(false);
-        U
+        panic!();
       }
     };
     new_seq.push(new_base);
@@ -701,54 +697,54 @@ pub fn logsumexp(sum: &mut FreeEnergy, new_term: FreeEnergy) {
 // Approximated (x.exp() + 1).ln() from CONTRAfold, eliminating ln() and exp() (assuming 0 <= x <= LOGSUMEXP_THRES_UPPER)
 #[inline]
 pub fn ln_exp_1p(x: FreeEnergy) -> FreeEnergy {
-  if x < 3.3792499610 {
-    if x < 1.6320158198 {
-      if x < 0.6615367791 {
-        ((-0.0065591595 * x + 0.1276442762) * x + 0.4996554598) * x + 0.6931542306
+  if x < 3.379_25 {
+    if x < 1.632_015_8 {
+      if x < 0.661_536_75 {
+        ((-0.0065591595 * x + 0.127_644_27) * x + 0.499_655_46) * x + 0.693_154_2
       } else {
-        ((-0.0155157557 * x + 0.1446775699) * x + 0.4882939746) * x + 0.6958092989
+        ((-0.015_515_756 * x + 0.144_677_56) * x + 0.488_293_98) * x + 0.695_809_3
       }
-    } else if x < 2.4912588184 {
-      ((-0.0128909247 * x + 0.1301028251) * x + 0.5150398748) * x + 0.6795585882
+    } else if x < 2.491_258_9 {
+      ((-0.012_890_925 * x + 0.130_102_83) * x + 0.515_039_86) * x + 0.679_558_6
     } else {
-      ((-0.0072142647 * x + 0.0877540853) * x + 0.6208708362) * x + 0.5909675829
+      ((-0.0072142647 * x + 0.087_754_086) * x + 0.620_870_8) * x + 0.590_967_6
     }
-  } else if x < 5.7890710412 {
-    if x < 4.4261691294 {
-      ((-0.0031455354 * x + 0.0467229449) * x + 0.7592532310) * x + 0.4348794399
+  } else if x < 5.789_071 {
+    if x < 4.426_169 {
+      ((-0.0031455354 * x + 0.046_722_945) * x + 0.759_253_2) * x + 0.434_879_45
     } else {
-      ((-0.0010110698 * x + 0.0185943421) * x + 0.8831730747) * x + 0.2523695427
+      ((-0.0010110698 * x + 0.018_594_341) * x + 0.883_173_05) * x + 0.252_369_55
     }
-  } else if x < 7.8162726752 {
-    ((-0.0001962780 * x + 0.0046084408) * x + 0.9634431978) * x + 0.0983148903
+  } else if x < 7.816_272_7 {
+    ((-0.000_196_278 * x + 0.0046084408) * x + 0.963_443_2) * x + 0.098_314_89
   } else {
-    ((-0.0000113994 * x + 0.0003734731) * x + 0.9959107193) * x + 0.0149855051
+    ((-0.0000113994 * x + 0.0003734731) * x + 0.995_910_7) * x + 0.0149855051
   }
 }
 
 // Approximated x.exp() from CONTRAfold
 #[inline]
 pub fn expf(x: FreeEnergy) -> FreeEnergy {
-  if x < -2.4915033807 {
-    if x < -5.8622823336 {
+  if x < -2.491_503_5 {
+    if x < -5.862_282_3 {
       if x < -9.91152 {
         0.
       } else {
-        ((0.0000803850 * x + 0.0021627428) * x + 0.0194708555) * x + 0.0588080014
+        ((0.0000803850 * x + 0.002_162_743) * x + 0.019_470_856) * x + 0.058_808_003
       }
-    } else if x < -3.8396630909 {
-      ((0.0013889414 * x + 0.0244676474) * x + 0.1471290604) * x + 0.3042757740
+    } else if x < -3.839_663 {
+      ((0.0013889414 * x + 0.024_467_647) * x + 0.147_129_06) * x + 0.304_275_78
     } else {
-      ((0.0072335607 * x + 0.0906002677) * x + 0.3983111356) * x + 0.6245959221
+      ((0.0072335607 * x + 0.090_600_27) * x + 0.398_311_14) * x + 0.624_595_94
     }
-  } else if x < -0.6725053211 {
-    if x < -1.4805375919 {
-      ((0.0232410351 * x + 0.2085645908) * x + 0.6906367911) * x + 0.8682322329
+  } else if x < -0.672_505_3 {
+    if x < -1.480_537_5 {
+      ((0.023_241_036 * x + 0.208_564_6) * x + 0.690_636_8) * x + 0.868_232_25
     } else {
-      ((0.0573782771 * x + 0.3580258429) * x + 0.9121133217) * x + 0.9793091728
+      ((0.057_378_277 * x + 0.358_025_85) * x + 0.912_113_3) * x + 0.979_309_2
     }
   } else if x < 0. {
-    ((0.1199175927 * x + 0.4815668234) * x + 0.9975991939) * x + 0.9999505077
+    ((0.119_917_594 * x + 0.481_566_82) * x + 0.997_599_2) * x + 0.999_950_5
   } else {
     x.exp()
   }
@@ -763,8 +759,8 @@ pub fn read_sa_from_clustal_file(clustal_file_path: &Path) -> (Cols, SeqIds) {
   let mut are_seq_ids_read = false;
   for (i, string) in reader_2_clustal_file.lines().enumerate() {
     let string = string.unwrap();
-    if i == 0 || string.len() == 0 || string.starts_with(" ") {
-      if cols.len() > 0 {
+    if i == 0 || string.is_empty() || string.starts_with(' ') {
+      if !cols.is_empty() {
         seq_pointer = 0;
         pos_pointer = cols.len();
         are_seq_ids_read = true;
@@ -823,7 +819,7 @@ pub fn read_sa_from_stockholm_file(stockholm_file_path: &Path) -> (Cols, SeqIds)
   let mut seqs = Vec::<Seq>::new();
   for string in reader_2_stockholm_file.lines() {
     let string = string.unwrap();
-    if string.len() == 0 || string.starts_with("#") {
+    if string.is_empty() || string.starts_with('#') {
       continue;
     } else if string.starts_with("//") {
       break;

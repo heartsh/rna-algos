@@ -75,7 +75,7 @@ fn main() {
       insert_scores[base] = feature_weight;
     } else {
       println!("{}: {}", feature_name, feature_weight);
-      assert!(false);
+      panic!();
     }
   }
   let output_file_path = Path::new("./src/compiled_seq_align_params.rs");

@@ -48,14 +48,12 @@ impl AlignFeatureCountSets {
     self.insert_switch_count = INSERT_SWITCH_SCORE;
     self.init_match_count = INIT_MATCH_SCORE;
     self.init_insert_count = INIT_INSERT_SCORE;
-    let len = self.insert_counts.len();
-    for i in 0..len {
-      self.insert_counts[i] = INSERT_SCORES[i];
+    for (i, &v) in INSERT_SCORES.iter().enumerate() {
+      self.insert_counts[i] = v;
     }
-    let len = self.align_count_mat.len();
-    for i in 0..len {
-      for j in 0..len {
-        self.align_count_mat[i][j] = MATCH_SCORE_MAT[i][j];
+    for (i, vs) in MATCH_SCORE_MAT.iter().enumerate() {
+      for (j, &v) in vs.iter().enumerate() {
+        self.align_count_mat[i][j] = v;
       }
     }
   }
@@ -233,8 +231,10 @@ fn get_match_prob_mat(
     &mut part_func,
     sa_part_func_mats.forward_part_func_mat_del[seq_len_pair.0 - 2][seq_len_pair.1 - 2],
   );
-  for i in 1..seq_len_pair.0 - 1 {
-    for j in 1..seq_len_pair.1 - 1 {
+  for (i, vs) in match_prob_mat.iter_mut().enumerate() {
+    if i == 0 || i == seq_len_pair.0 - 1 {continue;}
+    for (j, v) in vs.iter_mut().enumerate() {
+      if j == 0 || j == seq_len_pair.1 - 1 {continue;}
       let mut sum = NEG_INFINITY;
       let forward_part_func = sa_part_func_mats.forward_part_func_mat_match[i][j];
       let is_end = (i + 1, j + 1) == (seq_len_pair.0 - 1, seq_len_pair.1 - 1);
@@ -251,8 +251,7 @@ fn get_match_prob_mat(
         + sa_part_func_mats.backward_part_func_mat_del[i + 1][j + 1];
       logsumexp(&mut sum, term);
       let match_prob = expf(forward_part_func + sum - part_func);
-      debug_assert!(0. <= match_prob && match_prob <= 1.);
-      match_prob_mat[i][j] = match_prob;
+      *v = match_prob;
     }
   }
   match_prob_mat
