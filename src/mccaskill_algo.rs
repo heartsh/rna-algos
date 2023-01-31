@@ -423,8 +423,9 @@ where
       let mut sum = NEG_INFINITY;
       if is_canonical(&bp_closing_loop)
         && (allow_short_hairpins
-        || long_pp_closing_loop.1 - long_pp_closing_loop.0 + 1
-        >= MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL) {
+          || long_pp_closing_loop.1 - long_pp_closing_loop.0 + 1
+            >= MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL)
+      {
         if long_j - long_i - 1 <= CONTRA_MAX_LOOP_LEN {
           let hl_fe = get_hl_fe_contra(seq, &long_pp_closing_loop, struct_feature_score_sets);
           ss_free_energy_mats.hl_fe_mat.insert(pp_closing_loop, hl_fe);
@@ -626,9 +627,8 @@ where
             ss_part_func_mats.part_func_mat[long_j + 1][seq_len - 1]
           },
         );
-        let mut sum =
-          part_func_pair.0 + ss_part_func_4_base_pairing_accessible + part_func_pair.1
-            - ss_part_func;
+        let mut sum = part_func_pair.0 + ss_part_func_4_base_pairing_accessible + part_func_pair.1
+          - ss_part_func;
         for k in range(T::zero(), i).rev() {
           let long_k = k.to_usize().unwrap();
           if long_i - long_k - 1 > MAX_2_LOOP_LEN {

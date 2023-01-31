@@ -232,9 +232,13 @@ fn get_match_prob_mat(
     sa_part_func_mats.forward_part_func_mat_del[seq_len_pair.0 - 2][seq_len_pair.1 - 2],
   );
   for (i, vs) in match_prob_mat.iter_mut().enumerate() {
-    if i == 0 || i == seq_len_pair.0 - 1 {continue;}
+    if i == 0 || i == seq_len_pair.0 - 1 {
+      continue;
+    }
     for (j, v) in vs.iter_mut().enumerate() {
-      if j == 0 || j == seq_len_pair.1 - 1 {continue;}
+      if j == 0 || j == seq_len_pair.1 - 1 {
+        continue;
+      }
       let mut sum = NEG_INFINITY;
       let forward_part_func = sa_part_func_mats.forward_part_func_mat_match[i][j];
       let is_end = (i + 1, j + 1) == (seq_len_pair.0 - 1, seq_len_pair.1 - 1);
