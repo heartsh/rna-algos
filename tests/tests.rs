@@ -26,7 +26,6 @@ fn test_mccaskill() {
   thread_pool.scoped(|scope| {
     for fasta_record in &fasta_records {
       scope.execute(move || {
-        let seq_len = fasta_record.seq.len();
         let bpp_mat = mccaskill_algo::<u8>(
           &fasta_record.seq[..],
           false,
