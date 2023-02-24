@@ -28,24 +28,12 @@ fn test_mccaskill_algo() {
     for z in &fasta_records {
       x.execute(move || {
         let uses_contra_model = false;
-        let a = mccaskill_algo::<u8>(
-          &z.seq[..],
-          uses_contra_model,
-          allows_short_hairpins,
-          y,
-        )
-        .0;
+        let a = mccaskill_algo::<u8>(&z.seq[..], uses_contra_model, allows_short_hairpins, y).0;
         for &a in a.values() {
           assert!((PROB_BOUND_LOWER..PROB_BOUND_UPPER).contains(&a));
         }
         let uses_contra_model = true;
-        let a = mccaskill_algo::<u8>(
-          &z.seq[..],
-          uses_contra_model,
-          allows_short_hairpins,
-          y,
-        )
-        .0;
+        let a = mccaskill_algo::<u8>(&z.seq[..], uses_contra_model, allows_short_hairpins, y).0;
         for &a in a.values() {
           assert!((PROB_BOUND_LOWER..PROB_BOUND_UPPER).contains(&a));
         }

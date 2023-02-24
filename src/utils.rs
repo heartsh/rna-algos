@@ -180,11 +180,11 @@ pub fn get_hairpin_score(seq: SeqSlice, pos_pair_close: &(usize, usize)) -> Scor
       } else {
         HAIRPIN_SCORES_INIT[MIN_HAIRPIN_LEN_EXTRAPOLATION - 1]
           + COEFF_HAIRPIN_LEN_EXTRAPOLATION
-            * (hairpin_len as Score
-              / (MIN_HAIRPIN_LEN_EXTRAPOLATION - 1) as Score)
-              .ln()
+            * (hairpin_len as Score / (MIN_HAIRPIN_LEN_EXTRAPOLATION - 1) as Score).ln()
       };
-      hairpin_score_init + TERMINAL_MISMATCH_SCORES_HAIRPIN[basepair_close.0][basepair_close.1][terminal_mismatch.0][terminal_mismatch.1]
+      hairpin_score_init
+        + TERMINAL_MISMATCH_SCORES_HAIRPIN[basepair_close.0][basepair_close.1][terminal_mismatch.0]
+          [terminal_mismatch.1]
     };
     hairpin_score
       + if matches_augu(&basepair_close) {
@@ -209,9 +209,12 @@ pub fn get_2loop_score(
   pos_pair_close: &(usize, usize),
   pos_pair_accessible: &(usize, usize),
 ) -> Score {
-  if pos_pair_close.0 + 1 == pos_pair_accessible.0 && pos_pair_close.1 - 1 == pos_pair_accessible.1 {
+  if pos_pair_close.0 + 1 == pos_pair_accessible.0 && pos_pair_close.1 - 1 == pos_pair_accessible.1
+  {
     get_stack_score(seq, pos_pair_close, pos_pair_accessible)
-  } else if pos_pair_close.0 + 1 == pos_pair_accessible.0 || pos_pair_close.1 - 1 == pos_pair_accessible.1 {
+  } else if pos_pair_close.0 + 1 == pos_pair_accessible.0
+    || pos_pair_close.1 - 1 == pos_pair_accessible.1
+  {
     get_bulge_score(seq, pos_pair_close, pos_pair_accessible)
   } else {
     get_interior_score(seq, pos_pair_close, pos_pair_accessible)
@@ -233,7 +236,8 @@ fn get_bulge_score(
   pos_pair_close: &(usize, usize),
   pos_pair_accessible: &(usize, usize),
 ) -> Score {
-  let bulge_len = pos_pair_accessible.0 - pos_pair_close.0 + pos_pair_close.1 - pos_pair_accessible.1 - 2;
+  let bulge_len =
+    pos_pair_accessible.0 - pos_pair_close.0 + pos_pair_close.1 - pos_pair_accessible.1 - 2;
   if bulge_len == 1 {
     BULGE_SCORES_INIT[bulge_len] + get_stack_score(seq, pos_pair_close, pos_pair_accessible)
   } else {
@@ -268,16 +272,16 @@ fn get_interior_score(
   match loop_len_pair {
     (1, 1) => {
       let interior = (seq[pos_pair_close.0 + 1], seq[pos_pair_close.1 - 1]);
-      INTERIOR_SCORES_1X1[basepair_close.0][basepair_close.1][interior.0][interior.1][basepair_accessible.0]
-        [basepair_accessible.1]
+      INTERIOR_SCORES_1X1[basepair_close.0][basepair_close.1][interior.0][interior.1]
+        [basepair_accessible.0][basepair_accessible.1]
     }
     (1, 2) => {
       let interior = (
         (seq[pos_pair_close.0 + 1], seq[pos_pair_close.1 - 1]),
         seq[pos_pair_close.1 - 2],
       );
-      INTERIOR_SCORES_1X2[basepair_close.0][basepair_close.1][(interior.0).0][(interior.0).1][interior.1]
-        [basepair_accessible.0][basepair_accessible.1]
+      INTERIOR_SCORES_1X2[basepair_close.0][basepair_close.1][(interior.0).0][(interior.0).1]
+        [interior.1][basepair_accessible.0][basepair_accessible.1]
     }
     (2, 1) => {
       let interior = (
@@ -286,31 +290,22 @@ fn get_interior_score(
       );
       let basepair_accessible_inverse = invert_basepair(&basepair_accessible);
       let basepair_close_inverse = invert_basepair(&basepair_close);
-      INTERIOR_SCORES_1X2[basepair_accessible_inverse.0][basepair_accessible_inverse.1][(interior.0).0][(interior.0).1]
-        [interior.1][basepair_close_inverse.0][basepair_close_inverse.1]
+      INTERIOR_SCORES_1X2[basepair_accessible_inverse.0][basepair_accessible_inverse.1]
+        [(interior.0).0][(interior.0).1][interior.1][basepair_close_inverse.0]
+        [basepair_close_inverse.1]
     }
     (2, 2) => {
       let interior = (
         (seq[pos_pair_close.0 + 1], seq[pos_pair_close.1 - 1]),
         (seq[pos_pair_close.0 + 2], seq[pos_pair_close.1 - 2]),
       );
-      INTERIOR_SCORES_2X2[basepair_close.0][basepair_close.1][(interior.0).0][(interior.0).1][(interior.1).0]
-        [(interior.1).1][basepair_accessible.0][basepair_accessible.1]
+      INTERIOR_SCORES_2X2[basepair_close.0][basepair_close.1][(interior.0).0][(interior.0).1]
+        [(interior.1).0][(interior.1).1][basepair_accessible.0][basepair_accessible.1]
     }
     _ => {
       INTERIOR_SCORES_INIT[interior_len]
-        + (NINIO_COEFF
-          * get_abs_diff(
-            loop_len_pair.0,
-            loop_len_pair.1,
-          ) as Score)
-          .max(NINIO_MAX)
-        + get_interior_mismatch_score(
-          seq,
-          pos_pair_close,
-          pos_pair_accessible,
-          &loop_len_pair,
-        )
+        + (NINIO_COEFF * get_abs_diff(loop_len_pair.0, loop_len_pair.1) as Score).max(NINIO_MAX)
+        + get_interior_mismatch_score(seq, pos_pair_close, pos_pair_accessible, &loop_len_pair)
         + if matches_augu(&basepair_close) {
           HELIX_AUGU_END_PENALTY
         } else {
@@ -343,35 +338,40 @@ fn get_interior_mismatch_score(
   let basepair_accessible = (seq[pos_pair_accessible.1], seq[pos_pair_accessible.0]);
   let terminal_mismatch = (
     (seq[pos_pair_close.0 + 1], seq[pos_pair_close.1 - 1]),
-    (seq[pos_pair_accessible.1 + 1], seq[pos_pair_accessible.0 - 1]),
+    (
+      seq[pos_pair_accessible.1 + 1],
+      seq[pos_pair_accessible.0 - 1],
+    ),
   );
   match *loop_len_pair {
     (1, _) | (_, 1) => {
       TERMINAL_MISMATCH_SCORES_1XMANY[basepair_close.0][basepair_close.1][(terminal_mismatch.0).0]
         [(terminal_mismatch.0).1]
-        + TERMINAL_MISMATCH_SCORES_1XMANY[basepair_accessible.0][basepair_accessible.1][(terminal_mismatch.1).0]
-          [(terminal_mismatch.1).1]
+        + TERMINAL_MISMATCH_SCORES_1XMANY[basepair_accessible.0][basepair_accessible.1]
+          [(terminal_mismatch.1).0][(terminal_mismatch.1).1]
     }
     (2, 3) | (3, 2) => {
-      TERMINAL_MISMATCH_SCORES_2X3[basepair_close.0][basepair_close.1][(terminal_mismatch.0).0][(terminal_mismatch.0).1]
-        + TERMINAL_MISMATCH_SCORES_2X3[basepair_accessible.0][basepair_accessible.1][(terminal_mismatch.1).0][(terminal_mismatch.1).1]
+      TERMINAL_MISMATCH_SCORES_2X3[basepair_close.0][basepair_close.1][(terminal_mismatch.0).0]
+        [(terminal_mismatch.0).1]
+        + TERMINAL_MISMATCH_SCORES_2X3[basepair_accessible.0][basepair_accessible.1]
+          [(terminal_mismatch.1).0][(terminal_mismatch.1).1]
     }
     _ => {
-      TERMINAL_MISMATCH_SCORES_INTERIOR[basepair_close.0][basepair_close.1][(terminal_mismatch.0).0][(terminal_mismatch.0).1]
-        + TERMINAL_MISMATCH_SCORES_INTERIOR[basepair_accessible.0][basepair_accessible.1][(terminal_mismatch.1).0][(terminal_mismatch.1).1]
+      TERMINAL_MISMATCH_SCORES_INTERIOR[basepair_close.0][basepair_close.1][(terminal_mismatch.0).0]
+        [(terminal_mismatch.0).1]
+        + TERMINAL_MISMATCH_SCORES_INTERIOR[basepair_accessible.0][basepair_accessible.1]
+          [(terminal_mismatch.1).0][(terminal_mismatch.1).1]
     }
   }
 }
 
-pub fn get_multibranch_close_score(
-  seq: SeqSlice,
-  pos_pair_close: &(usize, usize),
-) -> Score {
+pub fn get_multibranch_close_score(seq: SeqSlice, pos_pair_close: &(usize, usize)) -> Score {
   let basepair_close = (seq[pos_pair_close.0], seq[pos_pair_close.1]);
   let basepair_close_inverse = invert_basepair(&basepair_close);
-  let basepair_stack_inverse = invert_basepair(&(seq[pos_pair_close.0 + 1], seq[pos_pair_close.1 - 1]));
-  let terminal_mismatch_score = TERMINAL_MISMATCH_SCORES_MULTIBRANCH[basepair_close_inverse.0][basepair_close_inverse.1]
-    [basepair_stack_inverse.0][basepair_stack_inverse.1];
+  let basepair_stack_inverse =
+    invert_basepair(&(seq[pos_pair_close.0 + 1], seq[pos_pair_close.1 - 1]));
+  let terminal_mismatch_score = TERMINAL_MISMATCH_SCORES_MULTIBRANCH[basepair_close_inverse.0]
+    [basepair_close_inverse.1][basepair_stack_inverse.0][basepair_stack_inverse.1];
   INIT_MULTIBRANCH_BASE
     + terminal_mismatch_score
     + if matches_augu(&basepair_close) {
@@ -391,20 +391,23 @@ pub fn get_accessible_score(
   let end_3prime = seq_len - if uses_sentinel_bases { 2 } else { 1 };
   let basepair_accessible = (seq[pos_pair_accessible.0], seq[pos_pair_accessible.1]);
   let score = if pos_pair_accessible.0 > end_5prime && pos_pair_accessible.1 < end_3prime {
-    TERMINAL_MISMATCH_SCORES_MULTIBRANCH[basepair_accessible.0][basepair_accessible.1][seq[pos_pair_accessible.0 - 1]]
-      [seq[pos_pair_accessible.1 + 1]]
+    TERMINAL_MISMATCH_SCORES_MULTIBRANCH[basepair_accessible.0][basepair_accessible.1]
+      [seq[pos_pair_accessible.0 - 1]][seq[pos_pair_accessible.1 + 1]]
   } else if pos_pair_accessible.0 > end_5prime {
-    DANGLING_SCORES_5PRIME[basepair_accessible.0][basepair_accessible.1][seq[pos_pair_accessible.0 - 1]]
+    DANGLING_SCORES_5PRIME[basepair_accessible.0][basepair_accessible.1]
+      [seq[pos_pair_accessible.0 - 1]]
   } else if pos_pair_accessible.1 < end_3prime {
-    DANGLING_SCORES_3PRIME[basepair_accessible.0][basepair_accessible.1][seq[pos_pair_accessible.1 + 1]]
+    DANGLING_SCORES_3PRIME[basepair_accessible.0][basepair_accessible.1]
+      [seq[pos_pair_accessible.1 + 1]]
   } else {
     0.
   };
-  score + if matches_augu(&basepair_accessible) {
-    HELIX_AUGU_END_PENALTY
-  } else {
-    0.
-  }
+  score
+    + if matches_augu(&basepair_accessible) {
+      HELIX_AUGU_END_PENALTY
+    } else {
+      0.
+    }
 }
 
 pub fn get_hairpin_score_contra(
@@ -424,27 +427,16 @@ pub fn get_2loop_score_contra(
   fold_score_sets: &FoldScoreSets,
 ) -> Score {
   let basepair_accessible = (seq[pos_pair_accessible.0], seq[pos_pair_accessible.1]);
-  let score = if pos_pair_close.0 + 1 == pos_pair_accessible.0 && pos_pair_close.1 - 1 == pos_pair_accessible.1 {
-    get_stack_score_contra(
-      seq,
-      pos_pair_close,
-      pos_pair_accessible,
-      fold_score_sets,
-    )
-  } else if pos_pair_close.0 + 1 == pos_pair_accessible.0 || pos_pair_close.1 - 1 == pos_pair_accessible.1 {
-    get_bulge_score_contra(
-      seq,
-      pos_pair_close,
-      pos_pair_accessible,
-      fold_score_sets,
-    )
+  let score = if pos_pair_close.0 + 1 == pos_pair_accessible.0
+    && pos_pair_close.1 - 1 == pos_pair_accessible.1
+  {
+    get_stack_score_contra(seq, pos_pair_close, pos_pair_accessible, fold_score_sets)
+  } else if pos_pair_close.0 + 1 == pos_pair_accessible.0
+    || pos_pair_close.1 - 1 == pos_pair_accessible.1
+  {
+    get_bulge_score_contra(seq, pos_pair_close, pos_pair_accessible, fold_score_sets)
   } else {
-    get_interior_score_contra(
-      seq,
-      pos_pair_close,
-      pos_pair_accessible,
-      fold_score_sets,
-    )
+    get_interior_score_contra(seq, pos_pair_close, pos_pair_accessible, fold_score_sets)
   };
   score + fold_score_sets.basepair_scores[basepair_accessible.0][basepair_accessible.1]
 }
@@ -467,13 +459,10 @@ pub fn get_bulge_score_contra(
   pos_pair_accessible: &(usize, usize),
   fold_score_sets: &FoldScoreSets,
 ) -> Score {
-  let bulge_len = pos_pair_accessible.0 - pos_pair_close.0 + pos_pair_close.1 - pos_pair_accessible.1 - 2;
+  let bulge_len =
+    pos_pair_accessible.0 - pos_pair_close.0 + pos_pair_close.1 - pos_pair_accessible.1 - 2;
   let score = if bulge_len == 1 {
-    fold_score_sets.bulge_scores_0x1[if pos_pair_accessible.0
-      - pos_pair_close.0
-      - 1
-      == 1
-    {
+    fold_score_sets.bulge_scores_0x1[if pos_pair_accessible.0 - pos_pair_close.0 - 1 == 1 {
       seq[pos_pair_close.0 + 1]
     } else {
       seq[pos_pair_close.1 - 1]
@@ -481,7 +470,8 @@ pub fn get_bulge_score_contra(
   } else {
     0.
   };
-  score + fold_score_sets.bulge_scores_len_cumulative[bulge_len - 1]
+  score
+    + fold_score_sets.bulge_scores_len_cumulative[bulge_len - 1]
     + get_junction_score_single(seq, pos_pair_close, fold_score_sets)
     + get_junction_score_single(
       seq,
@@ -503,27 +493,23 @@ pub fn get_interior_score_contra(
   let interior_len = loop_len_pair.0 + loop_len_pair.1;
   let score = if loop_len_pair.0 == loop_len_pair.1 {
     let score_1x1 = if interior_len == 2 {
-      fold_score_sets.interior_scores_1x1[seq[pos_pair_close.0 + 1]]
-        [seq[pos_pair_close.1 - 1]]
+      fold_score_sets.interior_scores_1x1[seq[pos_pair_close.0 + 1]][seq[pos_pair_close.1 - 1]]
     } else {
       0.
     };
-    score_1x1
-      + fold_score_sets.interior_scores_symmetric_cumulative
-        [loop_len_pair.0 - 1]
+    score_1x1 + fold_score_sets.interior_scores_symmetric_cumulative[loop_len_pair.0 - 1]
   } else {
-    fold_score_sets.interior_scores_asymmetric_cumulative[get_abs_diff(
-      loop_len_pair.0,
-      loop_len_pair.1,
-    ) - 1]
+    fold_score_sets.interior_scores_asymmetric_cumulative
+      [get_abs_diff(loop_len_pair.0, loop_len_pair.1) - 1]
   };
-  let score_explicit = if loop_len_pair.0 <= MAX_INTERIOR_EXPLICIT && loop_len_pair.1 <= MAX_INTERIOR_EXPLICIT {
-    fold_score_sets.interior_scores_explicit
-      [loop_len_pair.0 - 1][loop_len_pair.1 - 1]
-  } else {
-    0.
-  };
-  score + score_explicit
+  let score_explicit =
+    if loop_len_pair.0 <= MAX_INTERIOR_EXPLICIT && loop_len_pair.1 <= MAX_INTERIOR_EXPLICIT {
+      fold_score_sets.interior_scores_explicit[loop_len_pair.0 - 1][loop_len_pair.1 - 1]
+    } else {
+      0.
+    };
+  score
+    + score_explicit
     + fold_score_sets.interior_scores_len_cumulative[interior_len - 2]
     + get_junction_score_single(seq, pos_pair_close, fold_score_sets)
     + get_junction_score_single(
@@ -556,32 +542,16 @@ pub fn get_junction_score(
     }
 }
 
-pub fn get_junction_score_single(
-  x: SeqSlice,
-  y: &(usize, usize),
-  z: &FoldScoreSets,
-) -> Score {
+pub fn get_junction_score_single(x: SeqSlice, y: &(usize, usize), z: &FoldScoreSets) -> Score {
   let a = (x[y.0], x[y.1]);
-  get_helix_close_score(&a, z)
-    + get_terminal_mismatch_score(
-      &a,
-      &(x[y.0 + 1], x[y.1 - 1]),
-      z,
-    )
+  get_helix_close_score(&a, z) + get_terminal_mismatch_score(&a, &(x[y.0 + 1], x[y.1 - 1]), z)
 }
 
-pub fn get_helix_close_score(
-  x: &Basepair,
-  y: &FoldScoreSets,
-) -> Score {
+pub fn get_helix_close_score(x: &Basepair, y: &FoldScoreSets) -> Score {
   y.helix_close_scores[x.0][x.1]
 }
 
-pub fn get_terminal_mismatch_score(
-  x: &Basepair,
-  y: &Basepair,
-  z: &FoldScoreSets,
-) -> Score {
+pub fn get_terminal_mismatch_score(x: &Basepair, y: &Basepair, z: &FoldScoreSets) -> Score {
   z.terminal_mismatch_scores[x.0][x.1][y.0][y.1]
 }
 
@@ -616,13 +586,12 @@ pub fn logsumexp(sum: &mut Score, x: Score) {
   } else {
     let y = sum.min(x);
     let z = sum.max(x) - y;
-    y
-      + if z >= LOGSUMEXP_THRESHOLD_UPPER {
-        z
-      } else {
-        // Equivalent to z.exp().ln_1p()
-        ln_exp_1p(z)
-      }
+    y + if z >= LOGSUMEXP_THRESHOLD_UPPER {
+      z
+    } else {
+      // Equivalent to z.exp().ln_1p()
+      ln_exp_1p(z)
+    }
   };
 }
 

@@ -55,7 +55,11 @@ fn main() {
   let output_dir_path = matches.opt_str("o").unwrap();
   let output_dir_path = Path::new(&output_dir_path);
   let centroid_threshold = if matches.opt_present("centroid_threshold") {
-    matches.opt_str("centroid_threshold").unwrap().parse().unwrap()
+    matches
+      .opt_str("centroid_threshold")
+      .unwrap()
+      .parse()
+      .unwrap()
   } else {
     DEFAULT_CENTROID_THRESHOLD
   };
@@ -130,16 +134,28 @@ fn multithread_centroid_fold<T>(
     let _ = create_dir(output_dir_path);
   }
   if centroid_threshold != NEG_INFINITY {
-    let output_file_path = output_dir_path.join(format!("centroid_threshold={}.fa", centroid_threshold));
-    write_centroid_fold::<T>(&basepair_prob_mats, fasta_records, centroid_threshold, &output_file_path);
+    let output_file_path =
+      output_dir_path.join(format!("centroid_threshold={}.fa", centroid_threshold));
+    write_centroid_fold::<T>(
+      &basepair_prob_mats,
+      fasta_records,
+      centroid_threshold,
+      &output_file_path,
+    );
   } else {
     let ref_basepair_prob_mats = &basepair_prob_mats;
     thread_pool.scoped(|scope| {
       for pow_2 in MIN_POW_2..MAX_POW_2 + 1 {
-        let centroid_threshold  = (2. as Prob).powi(pow_2);
-        let output_file_path = output_dir_path.join(format!("centroid_threshold={}.fa", centroid_threshold));
+        let centroid_threshold = (2. as Prob).powi(pow_2);
+        let output_file_path =
+          output_dir_path.join(format!("centroid_threshold={}.fa", centroid_threshold));
         scope.execute(move || {
-          write_centroid_fold::<T>(ref_basepair_prob_mats, fasta_records, centroid_threshold, &output_file_path);
+          write_centroid_fold::<T>(
+            ref_basepair_prob_mats,
+            fasta_records,
+            centroid_threshold,
+            &output_file_path,
+          );
         });
       }
     });
@@ -159,7 +175,8 @@ fn write_centroid_fold<T>(
   let mut writer = BufWriter::new(File::create(output_file_path).unwrap());
   for (rna_id, fasta_record) in fasta_records.iter().enumerate() {
     let basepair_probs = &basepair_prob_mats[rna_id];
-    let centroid_fold = centroid_fold::<T>(basepair_probs, fasta_record.seq.len(), centroid_threshold);
+    let centroid_fold =
+      centroid_fold::<T>(basepair_probs, fasta_record.seq.len(), centroid_threshold);
     let buf_rna_id = format!(">{}\n", rna_id)
       + &unsafe {
         String::from_utf8_unchecked(get_fold_str::<T>(

@@ -62,23 +62,31 @@ fn main() {
   let mut basepair_prob_mats = vec![String::new(); num_fasta_records];
   let allows_short_hairpins = false;
   thread_pool.scoped(|scope| {
-    for (basepair_probs, fasta_record) in multizip((basepair_prob_mats.iter_mut(), fasta_records.iter())) {
+    for (basepair_probs, fasta_record) in
+      multizip((basepair_prob_mats.iter_mut(), fasta_records.iter()))
+    {
       scope.execute(move || {
         let seq_len = fasta_record.seq.len();
         if seq_len <= u8::MAX as usize {
-          *basepair_probs = probs2str(&mccaskill_algo::<u8>(
-            &fasta_record.seq[..],
-            uses_contra_model,
-            allows_short_hairpins,
-            ref_fold_score_sets,
-          ).0);
+          *basepair_probs = probs2str(
+            &mccaskill_algo::<u8>(
+              &fasta_record.seq[..],
+              uses_contra_model,
+              allows_short_hairpins,
+              ref_fold_score_sets,
+            )
+            .0,
+          );
         } else {
-          *basepair_probs = probs2str(&mccaskill_algo::<u16>(
-            &fasta_record.seq[..],
-            uses_contra_model,
-            allows_short_hairpins,
-            ref_fold_score_sets,
-          ).0);
+          *basepair_probs = probs2str(
+            &mccaskill_algo::<u16>(
+              &fasta_record.seq[..],
+              uses_contra_model,
+              allows_short_hairpins,
+              ref_fold_score_sets,
+            )
+            .0,
+          );
         }
       });
     }

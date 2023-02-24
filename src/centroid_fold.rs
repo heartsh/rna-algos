@@ -46,13 +46,15 @@ where
       }
       let pos_pair = (i, j);
       if let Some(&x) = basepair_probs.get(&pos_pair) {
-        let expect_accuracy = max_expect_accuracies[long_i + 1][long_j - 1] + centroid_threshold * x - 1.;
+        let expect_accuracy =
+          max_expect_accuracies[long_i + 1][long_j - 1] + centroid_threshold * x - 1.;
         if expect_accuracy > max_expect_accuracy {
           max_expect_accuracy = expect_accuracy;
         }
       }
       for k in long_i + 1..long_j {
-        let expect_accuracy = max_expect_accuracies[long_i][k] + max_expect_accuracies[k + 1][long_j];
+        let expect_accuracy =
+          max_expect_accuracies[long_i][k] + max_expect_accuracies[k + 1][long_j];
         if expect_accuracy > max_expect_accuracy {
           max_expect_accuracy = expect_accuracy;
         }
@@ -78,14 +80,19 @@ where
     } else if max_expect_accuracy == max_expect_accuracies[long_i][long_j - 1] {
       pos_pair_stack.push((i, j - T::one()));
     } else if basepair_probs.contains_key(&pos_pair)
-      && max_expect_accuracy == max_expect_accuracies[long_i + 1][long_j - 1] + centroid_threshold * basepair_probs[&pos_pair] - 1.
+      && max_expect_accuracy
+        == max_expect_accuracies[long_i + 1][long_j - 1]
+          + centroid_threshold * basepair_probs[&pos_pair]
+          - 1.
     {
       pos_pair_stack.push((i + T::one(), j - T::one()));
       centroid_fold.basepair_pos_pairs.push(pos_pair);
     } else {
       for k in range(i + T::one(), j) {
         let long_k = k.to_usize().unwrap();
-        if max_expect_accuracy == max_expect_accuracies[long_i][long_k] + max_expect_accuracies[long_k + 1][long_j] {
+        if max_expect_accuracy
+          == max_expect_accuracies[long_i][long_k] + max_expect_accuracies[long_k + 1][long_j]
+        {
           pos_pair_stack.push((i, k));
           pos_pair_stack.push((k + T::one(), j));
           break;

@@ -25,23 +25,21 @@ fn bench_mccaskill_algo(criterion: &mut Criterion) {
   let mut thread_pool = Pool::new(num_threads);
   let uses_contra_model = false;
   let allows_short_hairpins = false;
-  criterion.bench_function("mccaskill_algo_algo::<u8> (uses_contra_model = false)", |x| {
-    let y = &fold_scores;
-    x.iter(|| {
-      thread_pool.scoped(|z| {
-        for a in &fasta_records {
-          z.execute(move || {
-            let _ = mccaskill_algo::<u8>(
-              &a.seq[..],
-              uses_contra_model,
-              allows_short_hairpins,
-              y,
-            );
-          });
-        }
+  criterion.bench_function(
+    "mccaskill_algo_algo::<u8> (uses_contra_model = false)",
+    |x| {
+      let y = &fold_scores;
+      x.iter(|| {
+        thread_pool.scoped(|z| {
+          for a in &fasta_records {
+            z.execute(move || {
+              let _ = mccaskill_algo::<u8>(&a.seq[..], uses_contra_model, allows_short_hairpins, y);
+            });
+          }
+        });
       });
-    });
-  });
+    },
+  );
   let uses_contra_model = true;
   criterion.bench_function("mccaskill_algo::<u8> (uses_contra_model = true)", |x| {
     let y = &fold_scores;
@@ -49,12 +47,7 @@ fn bench_mccaskill_algo(criterion: &mut Criterion) {
       thread_pool.scoped(|z| {
         for a in &fasta_records {
           z.execute(move || {
-            let _ = mccaskill_algo::<u8>(
-              &a.seq[..],
-              uses_contra_model,
-              allows_short_hairpins,
-              y,
-            );
+            let _ = mccaskill_algo::<u8>(&a.seq[..], uses_contra_model, allows_short_hairpins, y);
           });
         }
       });

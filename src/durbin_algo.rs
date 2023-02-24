@@ -70,19 +70,13 @@ impl AlignSums {
   }
 }
 
-pub fn durbin_algo(
-  seq_pair: &SeqPair,
-  align_scores: &AlignScores,
-) -> ProbMat {
+pub fn durbin_algo(seq_pair: &SeqPair, align_scores: &AlignScores) -> ProbMat {
   let seq_len_pair = (seq_pair.0.len(), seq_pair.1.len());
   let align_sums = get_align_sums(seq_pair, align_scores);
   get_match_probs(&align_sums, &seq_len_pair, align_scores)
 }
 
-pub fn get_align_sums(
-  seq_pair: &SeqPair,
-  align_scores: &AlignScores,
-) -> AlignSums {
+pub fn get_align_sums(seq_pair: &SeqPair, align_scores: &AlignScores) -> AlignSums {
   let seq_len_pair = (seq_pair.0.len(), seq_pair.1.len());
   let mut align_sums = AlignSums::new(&seq_len_pair);
   for i in 0..seq_len_pair.0 - 1 {
@@ -103,11 +97,9 @@ pub fn get_align_sums(
             align_scores.match2match_score
           };
         logsumexp(&mut sum, term);
-        let term = align_sums.forward_sums_insert[i - 1][j - 1]
-          + align_scores.match2insert_score;
+        let term = align_sums.forward_sums_insert[i - 1][j - 1] + align_scores.match2insert_score;
         logsumexp(&mut sum, term);
-        let term = align_sums.forward_sums_del[i - 1][j - 1]
-          + align_scores.match2insert_score;
+        let term = align_sums.forward_sums_del[i - 1][j - 1] + align_scores.match2insert_score;
         logsumexp(&mut sum, term);
         align_sums.forward_sums_match[i][j] = sum + match_score;
       }
@@ -123,8 +115,7 @@ pub fn get_align_sums(
             align_scores.match2insert_score
           };
         logsumexp(&mut sum, term);
-        let term = align_sums.forward_sums_insert[i - 1][j]
-          + align_scores.insert_extend_score;
+        let term = align_sums.forward_sums_insert[i - 1][j] + align_scores.insert_extend_score;
         logsumexp(&mut sum, term);
         align_sums.forward_sums_insert[i][j] = sum + insert_score;
       }
@@ -140,8 +131,7 @@ pub fn get_align_sums(
             align_scores.match2insert_score
           };
         logsumexp(&mut sum, term);
-        let term = align_sums.forward_sums_del[i][j - 1]
-          + align_scores.insert_extend_score;
+        let term = align_sums.forward_sums_del[i][j - 1] + align_scores.insert_extend_score;
         logsumexp(&mut sum, term);
         align_sums.forward_sums_del[i][j] = sum + insert_score;
       }
@@ -165,11 +155,9 @@ pub fn get_align_sums(
             align_scores.match2match_score
           };
         logsumexp(&mut sum, term);
-        let term = align_sums.backward_sums_insert[i + 1][j + 1]
-          + align_scores.match2insert_score;
+        let term = align_sums.backward_sums_insert[i + 1][j + 1] + align_scores.match2insert_score;
         logsumexp(&mut sum, term);
-        let term = align_sums.backward_sums_del[i + 1][j + 1]
-          + align_scores.match2insert_score;
+        let term = align_sums.backward_sums_del[i + 1][j + 1] + align_scores.match2insert_score;
         logsumexp(&mut sum, term);
         align_sums.backward_sums_match[i][j] = sum + match_score;
       }
@@ -185,8 +173,7 @@ pub fn get_align_sums(
             align_scores.match2insert_score
           };
         logsumexp(&mut sum, term);
-        let term = align_sums.backward_sums_insert[i + 1][j]
-          + align_scores.insert_extend_score;
+        let term = align_sums.backward_sums_insert[i + 1][j] + align_scores.insert_extend_score;
         logsumexp(&mut sum, term);
         align_sums.backward_sums_insert[i][j] = sum + insert_score;
       }
@@ -202,8 +189,7 @@ pub fn get_align_sums(
             align_scores.match2insert_score
           };
         logsumexp(&mut sum, term);
-        let term = align_sums.backward_sums_del[i][j + 1]
-          + align_scores.insert_extend_score;
+        let term = align_sums.backward_sums_del[i][j + 1] + align_scores.insert_extend_score;
         logsumexp(&mut sum, term);
         align_sums.backward_sums_del[i][j] = sum + insert_score;
       }
@@ -218,8 +204,7 @@ fn get_match_probs(
   align_scores: &AlignScores,
 ) -> ProbMat {
   let mut match_probs = vec![vec![0.; seq_len_pair.1]; seq_len_pair.0];
-  let mut global_sum =
-    align_sums.forward_sums_match[seq_len_pair.0 - 2][seq_len_pair.1 - 2];
+  let mut global_sum = align_sums.forward_sums_match[seq_len_pair.0 - 2][seq_len_pair.1 - 2];
   logsumexp(
     &mut global_sum,
     align_sums.forward_sums_insert[seq_len_pair.0 - 2][seq_len_pair.1 - 2],
@@ -245,11 +230,9 @@ fn get_match_probs(
         align_scores.match2match_score
       } + align_sums.backward_sums_match[i + 1][j + 1];
       logsumexp(&mut sum, term);
-      let term = align_scores.match2insert_score
-        + align_sums.backward_sums_insert[i + 1][j + 1];
+      let term = align_scores.match2insert_score + align_sums.backward_sums_insert[i + 1][j + 1];
       logsumexp(&mut sum, term);
-      let term = align_scores.match2insert_score
-        + align_sums.backward_sums_del[i + 1][j + 1];
+      let term = align_scores.match2insert_score + align_sums.backward_sums_del[i + 1][j + 1];
       logsumexp(&mut sum, term);
       let match_prob = expf(forward_sum + sum - global_sum);
       *x = match_prob;
