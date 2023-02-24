@@ -1,6 +1,6 @@
 [package]
 name = "rna-algos"
-version = "0.1.36"
+version = "0.1.37"
 authors = ["heartsh <heartsh@heartsh.io>"]
 description = "Library of RNA Bioinformatics Algorithms"
 repository = "https://github.com/heartsh/rna-algos"
