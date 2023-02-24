@@ -5,46 +5,49 @@ use rna_algos::mccaskill_algo::*;
 use rna_algos::utils::*;
 
 #[test]
-fn test_mccaskill() {
+fn test_mccaskill_algo() {
   let fasta_file_reader = Reader::from_file(Path::new(&EXAMPLE_FASTA_FILE_PATH)).unwrap();
   let mut fasta_records = FastaRecords::new();
   let mut max_seq_len = 0;
-  for fasta_record in fasta_file_reader.records() {
-    let fasta_record = fasta_record.unwrap();
-    let seq = convert(fasta_record.seq());
-    let seq_len = seq.len();
-    if seq_len > max_seq_len {
-      max_seq_len = seq_len;
+  for x in fasta_file_reader.records() {
+    let x = x.unwrap();
+    let y = bytes2seq(x.seq());
+    let z = y.len();
+    if z > max_seq_len {
+      max_seq_len = z;
     }
-    fasta_records.push(FastaRecord::new(String::from(fasta_record.id()), seq));
+    fasta_records.push(FastaRecord::new(String::from(x.id()), y));
   }
-  let mut struct_feature_score_sets = StructFeatureCountSets::new(0.);
-  struct_feature_score_sets.transfer();
-  let num_of_threads = num_cpus::get() as NumOfThreads;
-  let mut thread_pool = Pool::new(num_of_threads);
-  let ref_2_struct_feature_score_sets = &struct_feature_score_sets;
-  thread_pool.scoped(|scope| {
-    for fasta_record in &fasta_records {
-      scope.execute(move || {
-        let bpp_mat = mccaskill_algo::<u8>(
-          &fasta_record.seq[..],
-          false,
-          false,
-          ref_2_struct_feature_score_sets,
+  let mut fold_scores = FoldScoreSets::new(0.);
+  fold_scores.transfer();
+  let num_threads = num_cpus::get() as NumThreads;
+  let mut thread_pool = Pool::new(num_threads);
+  let allows_short_hairpins = false;
+  thread_pool.scoped(|x| {
+    let y = &fold_scores;
+    for z in &fasta_records {
+      x.execute(move || {
+        let uses_contra_model = false;
+        let a = mccaskill_algo::<u8>(
+          &z.seq[..],
+          uses_contra_model,
+          allows_short_hairpins,
+          y,
         )
         .0;
-        for &bpp in bpp_mat.values() {
-          assert!((PROB_BOUND_LOWER..PROB_BOUND_UPPER).contains(&bpp));
+        for &a in a.values() {
+          assert!((PROB_BOUND_LOWER..PROB_BOUND_UPPER).contains(&a));
         }
-        let bpp_mat = mccaskill_algo::<u8>(
-          &fasta_record.seq[..],
-          true,
-          false,
-          ref_2_struct_feature_score_sets,
+        let uses_contra_model = true;
+        let a = mccaskill_algo::<u8>(
+          &z.seq[..],
+          uses_contra_model,
+          allows_short_hairpins,
+          y,
         )
         .0;
-        for &bpp in bpp_mat.values() {
-          assert!((PROB_BOUND_LOWER..PROB_BOUND_UPPER).contains(&bpp));
+        for &a in a.values() {
+          assert!((PROB_BOUND_LOWER..PROB_BOUND_UPPER).contains(&a));
         }
       });
     }
@@ -52,35 +55,35 @@ fn test_mccaskill() {
 }
 
 #[test]
-fn test_durbin() {
+fn test_durbin_algo() {
   let fasta_file_reader = Reader::from_file(Path::new(&EXAMPLE_FASTA_FILE_PATH)).unwrap();
   let mut fasta_records = FastaRecords::new();
   let mut max_seq_len = 0;
-  for fasta_record in fasta_file_reader.records() {
-    let fasta_record = fasta_record.unwrap();
-    let mut seq = convert(fasta_record.seq());
-    seq.insert(0, PSEUDO_BASE);
-    seq.push(PSEUDO_BASE);
-    let seq_len = seq.len();
-    if seq_len > max_seq_len {
-      max_seq_len = seq_len;
+  for x in fasta_file_reader.records() {
+    let x = x.unwrap();
+    let mut y = bytes2seq(x.seq());
+    y.insert(0, PSEUDO_BASE);
+    y.push(PSEUDO_BASE);
+    let z = y.len();
+    if z > max_seq_len {
+      max_seq_len = z;
     }
-    fasta_records.push(FastaRecord::new(String::from(fasta_record.id()), seq));
+    fasta_records.push(FastaRecord::new(String::from(x.id()), y));
   }
-  let mut align_feature_score_sets = AlignFeatureCountSets::new(0.);
-  align_feature_score_sets.transfer();
-  let num_of_threads = num_cpus::get() as NumOfThreads;
-  let mut thread_pool = Pool::new(num_of_threads);
-  let ref_2_align_feature_score_sets = &align_feature_score_sets;
-  let num_of_recs = fasta_records.len();
-  thread_pool.scoped(|scope| {
-    for i in 0..num_of_recs {
-      for j in i + 1..num_of_recs {
-        let seq_pair = (&fasta_records[i].seq[..], &fasta_records[j].seq[..]);
-        scope.execute(move || {
-          let align_prob_mat = durbin_algo(&seq_pair, ref_2_align_feature_score_sets);
-          for &align_prob in align_prob_mat.iter().flatten() {
-            assert!((PROB_BOUND_LOWER..PROB_BOUND_UPPER).contains(&align_prob));
+  let mut align_scores = AlignScores::new(0.);
+  align_scores.transfer();
+  let num_threads = num_cpus::get() as NumThreads;
+  let mut thread_pool = Pool::new(num_threads);
+  let num_records = fasta_records.len();
+  thread_pool.scoped(|x| {
+    let y = &align_scores;
+    for i in 0..num_records {
+      for j in i + 1..num_records {
+        let z = (&fasta_records[i].seq[..], &fasta_records[j].seq[..]);
+        x.execute(move || {
+          let x = durbin_algo(&z, y);
+          for &x in x.iter().flatten() {
+            assert!((PROB_BOUND_LOWER..PROB_BOUND_UPPER).contains(&x));
           }
         });
       }

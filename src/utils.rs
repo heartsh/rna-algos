@@ -5,8 +5,8 @@ pub use num::{
   range, range_inclusive, Bounded, FromPrimitive, Integer, One, PrimInt, ToPrimitive, Unsigned,
   Zero,
 };
-pub use rna_ss_params::compiled_free_energy_params_contra::*;
-pub use rna_ss_params::compiled_free_energy_params_turner::*;
+pub use rna_ss_params::compiled_scores_contra::*;
+pub use rna_ss_params::compiled_scores_turner::*;
 pub use rna_ss_params::utils::*;
 pub use scoped_threadpool::Pool;
 pub use std::cmp::{max, min};
@@ -43,9 +43,7 @@ impl<T: Unsigned + PrimInt + Hash + FromPrimitive + Integer + One + Ord + Displa
 }
 
 pub type PosPair<T> = (T, T);
-pub type PosQuadruple<T> = (T, T, T, T);
-pub type Num = usize;
-type NumPair = (Num, Num);
+pub type PosQuad<T> = (T, T, T, T);
 type Arg = String;
 pub type Args = Vec<Arg>;
 pub type FastaId = String;
@@ -55,7 +53,7 @@ pub struct FastaRecord {
   pub seq: Seq,
 }
 #[derive(Debug)]
-pub struct SeqAlign<T> {
+pub struct Align<T> {
   pub cols: Cols,
   pub pos_map_sets: PosMapSets<T>,
 }
@@ -63,120 +61,68 @@ pub type PosMaps<T> = Vec<T>;
 pub type PosMapSets<T> = Vec<PosMaps<T>>;
 pub type FastaRecords = Vec<FastaRecord>;
 pub type SeqSlice<'a> = &'a [Base];
-pub type NumOfThreads = u32;
+pub type NumThreads = u32;
 pub type SparseProbMat<T> = HashMap<PosPair<T>, Prob>;
-pub type BaScoreMat = HashMap<BasePair, FreeEnergy>;
-pub type BpaScoreMat = HashMap<(BasePair, BasePair), FreeEnergy>;
 pub type SeqId = String;
 pub type SeqIds = Vec<SeqId>;
 pub type Col = Vec<Base>;
 pub type Cols = Vec<Col>;
-pub type PartFunc4dMat<T> = HashMap<PosQuadruple<T>, PartFunc>;
-pub type SparsePartFuncMat<T> = HashMap<PosPair<T>, PartFunc>;
-pub type FreeEnergies = Vec<FreeEnergy>;
-pub type FreeEnergyMat = Vec<FreeEnergies>;
-pub type SparseFreeEnergyMat<T> = HashMap<PosPair<T>, FreeEnergy>;
+pub type Sum4dMat<T> = HashMap<PosQuad<T>, Sum>;
+pub type SparseSumMat<T> = HashMap<PosPair<T>, Sum>;
 pub type PosPairs<T> = Vec<PosPair<T>>;
-pub type Mea = Prob;
-pub type MeaSsChar = u8;
-pub type MeaSsStr = Vec<MeaSsChar>;
-pub type Char = u8;
+pub type FoldChar = u8;
+pub type FoldStr = Vec<FoldChar>;
 pub type Seq = Vec<Base>;
 pub type SeqPair<'a> = (SeqSlice<'a>, SeqSlice<'a>);
 pub type Prob = f32;
-pub type LogProb = Prob;
-pub type PartFunc = Prob;
+pub type Sum = Prob;
 pub type Probs = Vec<Prob>;
 pub type ProbMat = Vec<Probs>;
-pub type PartFuncs = Vec<PartFunc>;
-pub type PartFuncMat = Vec<PartFuncs>;
+pub type Sums = Vec<Sum>;
+pub type SumMat = Vec<Sums>;
 pub type Pos = usize;
 pub type Base = usize;
-pub type MatchScoreMat = [[Prob; NUM_OF_BASES]; NUM_OF_BASES];
-pub type InsertScores = [Prob; NUM_OF_BASES];
+pub type MatchScores = [[Score; NUM_BASES]; NUM_BASES];
+pub type InsertScores = [Score; NUM_BASES];
 pub type RnaId = usize;
 pub type RnaIdPair = (RnaId, RnaId);
-pub type ProbMatsWithRnaIdPairs = HashMap<RnaIdPair, ProbMat>;
-pub type FeatureCount = Prob;
+pub type ProbMatsHashedIds = HashMap<RnaIdPair, ProbMat>;
 
 #[derive(Clone, Debug)]
-pub struct StructFeatureCountSets {
+pub struct FoldScoreSets {
   // The CONTRAfold model.
-  pub hairpin_loop_length_counts: HairpinLoopLengthCounts,
-  pub bulge_loop_length_counts: BulgeLoopLengthCounts,
-  pub interior_loop_length_counts: InteriorLoopLengthCounts,
-  pub interior_loop_length_counts_symm: InteriorLoopLengthCountsSymm,
-  pub interior_loop_length_counts_asymm: InteriorLoopLengthCountsAsymm,
-  pub stack_count_mat: StackCountMat,
-  pub terminal_mismatch_count_mat: TerminalMismatchCount4dMat,
-  pub left_dangle_count_mat: DangleCount3dMat,
-  pub right_dangle_count_mat: DangleCount3dMat,
-  pub helix_end_count_mat: HelixEndCountMat,
-  pub base_pair_count_mat: BasePairCountMat,
-  pub interior_loop_length_count_mat_explicit: InteriorLoopLengthCountMatExplicit,
-  pub bulge_loop_0x1_length_counts: BulgeLoop0x1LengthCounts,
-  pub interior_loop_1x1_length_count_mat: InteriorLoop1x1LengthCountMat,
-  pub multi_loop_base_count: FeatureCount,
-  pub multi_loop_basepairing_count: FeatureCount,
-  pub multi_loop_accessible_baseunpairing_count: FeatureCount,
-  pub external_loop_accessible_basepairing_count: FeatureCount,
-  pub external_loop_accessible_baseunpairing_count: FeatureCount,
+  pub hairpin_scores_len: HairpinScoresLen,
+  pub bulge_scores_len: BulgeScoresLen,
+  pub interior_scores_len: InteriorScoresLen,
+  pub interior_scores_symmetric: InteriorScoresSymmetric,
+  pub interior_scores_asymmetric: InteriorScoresAsymmetric,
+  pub stack_scores: StackScores,
+  pub terminal_mismatch_scores: TerminalMismatchScores,
+  pub dangling_scores_left: DanglingScores,
+  pub dangling_scores_right: DanglingScores,
+  pub helix_close_scores: HelixCloseScores,
+  pub basepair_scores: BasepairScores,
+  pub interior_scores_explicit: InteriorScoresExplicit,
+  pub bulge_scores_0x1: BulgeScores0x1,
+  pub interior_scores_1x1: InteriorScores1x1Contra,
+  pub multibranch_score_base: Score,
+  pub multibranch_score_basepair: Score,
+  pub multibranch_score_unpair: Score,
+  pub external_score_basepair: Score,
+  pub external_score_unpair: Score,
   // The cumulative parameters of the CONTRAfold model.
-  pub hairpin_loop_length_counts_cumulative: HairpinLoopLengthCounts,
-  pub bulge_loop_length_counts_cumulative: BulgeLoopLengthCounts,
-  pub interior_loop_length_counts_cumulative: InteriorLoopLengthCounts,
-  pub interior_loop_length_counts_symm_cumulative: InteriorLoopLengthCountsSymm,
-  pub interior_loop_length_counts_asymm_cumulative: InteriorLoopLengthCountsAsymm,
+  pub hairpin_scores_len_cumulative: HairpinScoresLen,
+  pub bulge_scores_len_cumulative: BulgeScoresLen,
+  pub interior_scores_len_cumulative: InteriorScoresLen,
+  pub interior_scores_symmetric_cumulative: InteriorScoresSymmetric,
+  pub interior_scores_asymmetric_cumulative: InteriorScoresAsymmetric,
 }
 
-pub type TerminalMismatchCount3dMat = [[[FeatureCount; NUM_OF_BASES]; NUM_OF_BASES]; NUM_OF_BASES];
-pub type TerminalMismatchCount4dMat = [TerminalMismatchCount3dMat; NUM_OF_BASES];
-pub type StackCountMat = TerminalMismatchCount4dMat;
-pub type HelixEndCountMat = [[FeatureCount; NUM_OF_BASES]; NUM_OF_BASES];
-pub type AlignCountMat = HelixEndCountMat;
-pub type InsertCounts = [FeatureCount; NUM_OF_BASES];
-pub type HairpinLoopLengthCounts = [FeatureCount; CONSPROB_MAX_HAIRPIN_LOOP_LEN + 1];
-pub type BulgeLoopLengthCounts = [FeatureCount; CONSPROB_MAX_TWOLOOP_LEN];
-pub type InteriorLoopLengthCounts = [FeatureCount; CONSPROB_MAX_TWOLOOP_LEN - 1];
-pub type InteriorLoopLengthCountsSymm = [FeatureCount; CONSPROB_MAX_INTERIOR_LOOP_LEN_SYMM];
-pub type InteriorLoopLengthCountsAsymm = [FeatureCount; CONSPROB_MAX_INTERIOR_LOOP_LEN_ASYMM];
-pub type DangleCount3dMat = [[[FeatureCount; NUM_OF_BASES]; NUM_OF_BASES]; NUM_OF_BASES];
-pub type BasePairCountMat = HelixEndCountMat;
-pub type InteriorLoopLengthCountMatExplicit = [[FeatureCount;
-  CONSPROB_MAX_INTERIOR_LOOP_LEN_EXPLICIT];
-  CONSPROB_MAX_INTERIOR_LOOP_LEN_EXPLICIT];
-pub type BulgeLoop0x1LengthCounts = [FeatureCount; NUM_OF_BASES];
-pub type InteriorLoop1x1LengthCountMat = [[FeatureCount; NUM_OF_BASES]; NUM_OF_BASES];
-pub type InteriorLoopLengthCountMat =
-  [[FeatureCount; CONSPROB_MAX_TWOLOOP_LEN - 1]; CONSPROB_MAX_TWOLOOP_LEN - 1];
-
-pub const MAX_SPAN_OF_INDEX_PAIR_CLOSING_IL: usize = MAX_2_LOOP_LEN + 2;
-pub const MIN_SPAN_OF_INDEX_PAIR_CLOSING_ML: usize = MIN_SPAN_OF_INDEX_PAIR_CLOSING_HL * 2 + 2;
-pub const SMALL_A: u8 = b'a';
-pub const BIG_A: u8 = b'A';
-pub const SMALL_C: u8 = b'c';
-pub const BIG_C: u8 = b'C';
-pub const SMALL_G: u8 = b'g';
-pub const BIG_G: u8 = b'G';
-pub const SMALL_U: u8 = b'u';
-pub const BIG_U: u8 = b'U';
-pub const LOGSUMEXP_THRES_UPPER: FreeEnergy = 11.862_479;
-pub const A: Base = 0;
-pub const C: Base = 1;
-pub const G: Base = 2;
-pub const U: Base = 3;
+pub const LOGSUMEXP_THRESHOLD_UPPER: Score = 11.862_479;
 pub const PSEUDO_BASE: Base = U + 1 as Base;
-pub const UNPAIRING_BASE: MeaSsChar = b'.';
-pub const BASE_PAIRING_LEFT_BASE: MeaSsChar = b'(';
-pub const BASE_PAIRING_RIGHT_BASE: MeaSsChar = b')';
-pub const NUM_OF_BASES: usize = 4;
-pub const CONSPROB_MAX_HAIRPIN_LOOP_LEN: usize = 30;
-pub const CONSPROB_MAX_TWOLOOP_LEN: usize = CONSPROB_MAX_HAIRPIN_LOOP_LEN;
-pub const CONSPROB_MIN_HAIRPIN_LOOP_LEN: usize = 3;
-pub const CONSPROB_MIN_HAIRPIN_LOOP_SPAN: usize = CONSPROB_MIN_HAIRPIN_LOOP_LEN + 2;
-pub const CONSPROB_MAX_INTERIOR_LOOP_LEN_EXPLICIT: usize = 4;
-pub const CONSPROB_MAX_INTERIOR_LOOP_LEN_SYMM: usize = CONSPROB_MAX_TWOLOOP_LEN / 2;
-pub const CONSPROB_MAX_INTERIOR_LOOP_LEN_ASYMM: usize = CONSPROB_MAX_TWOLOOP_LEN - 2;
+pub const UNPAIR: FoldChar = b'.';
+pub const BASEPAIR_LEFT: FoldChar = b'(';
+pub const BASEPAIR_RIGHT: FoldChar = b')';
 pub const EXAMPLE_FASTA_FILE_PATH: &str = "assets/sampled_trnas.fa";
 pub const EPSILON: Prob = 0.00_1;
 pub const PROB_BOUND_LOWER: Prob = -EPSILON;
@@ -189,188 +135,189 @@ impl FastaRecord {
       seq: Seq::new(),
     }
   }
-  pub fn new(input_fasta_id: FastaId, input_seq: Seq) -> FastaRecord {
+
+  pub fn new(fasta_id: FastaId, seq: Seq) -> FastaRecord {
     FastaRecord {
-      fasta_id: input_fasta_id,
-      seq: input_seq,
+      fasta_id: fasta_id,
+      seq: seq,
     }
   }
 }
 
-impl<T> Default for SeqAlign<T> {
+impl<T> Default for Align<T> {
   fn default() -> Self {
     Self::new()
   }
 }
 
-impl<T> SeqAlign<T> {
-  pub fn new() -> SeqAlign<T> {
-    SeqAlign {
+impl<T> Align<T> {
+  pub fn new() -> Align<T> {
+    Align {
       cols: Cols::new(),
       pos_map_sets: PosMapSets::<T>::new(),
     }
   }
 }
 
-pub fn is_canonical(bp: &BasePair) -> bool {
-  matches!(*bp, AU | CG | GC | GU | UA | UG)
+pub fn has_canonical_basepair(x: &Basepair) -> bool {
+  matches!(*x, AU | CG | GC | GU | UA | UG)
 }
 
-pub fn get_hl_fe(seq: SeqSlice, pp_closing_loop: &(usize, usize)) -> FreeEnergy {
-  let hl = &seq[pp_closing_loop.0..pp_closing_loop.1 + 1];
-  let special_hl_fe = get_special_hl_fe(hl);
-  if special_hl_fe > NEG_INFINITY {
-    special_hl_fe
+pub fn get_hairpin_score(seq: SeqSlice, pos_pair_close: &(usize, usize)) -> Score {
+  let hairpin = &seq[pos_pair_close.0..pos_pair_close.1 + 1];
+  let special_hairpin_score = get_special_hairpin_score(hairpin);
+  if special_hairpin_score > NEG_INFINITY {
+    special_hairpin_score
   } else {
-    let hl_len = pp_closing_loop.1 - pp_closing_loop.0 - 1;
-    let bp_closing_hl = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
-    let hl_fe = if hl_len == MIN_HL_LEN {
-      INIT_HL_DELTA_FES[hl_len]
+    let hairpin_len = pos_pair_close.1 - pos_pair_close.0 - 1;
+    let basepair_close = (seq[pos_pair_close.0], seq[pos_pair_close.1]);
+    let hairpin_score = if hairpin_len == MIN_HAIRPIN_LEN {
+      HAIRPIN_SCORES_INIT[hairpin_len]
     } else {
-      let tm = (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]);
-      let init_hl_delta_fe = if hl_len <= MAX_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_LOOP_DELTA_FE {
-        INIT_HL_DELTA_FES[hl_len]
+      let terminal_mismatch = (seq[pos_pair_close.0 + 1], seq[pos_pair_close.1 - 1]);
+      let hairpin_score_init = if hairpin_len <= MAX_HAIRPIN_LEN_EXTRAPOLATION {
+        HAIRPIN_SCORES_INIT[hairpin_len]
       } else {
-        INIT_HL_DELTA_FES[MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE - 1]
-          + COEFFICIENT_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE
-            * (hl_len as FreeEnergy
-              / (MIN_LOOP_LEN_4_LOG_EXTRAPOLATION_OF_INIT_HL_DELTA_FE - 1) as FreeEnergy)
+        HAIRPIN_SCORES_INIT[MIN_HAIRPIN_LEN_EXTRAPOLATION - 1]
+          + COEFF_HAIRPIN_LEN_EXTRAPOLATION
+            * (hairpin_len as Score
+              / (MIN_HAIRPIN_LEN_EXTRAPOLATION - 1) as Score)
               .ln()
       };
-      init_hl_delta_fe + HL_TM_DELTA_FES[bp_closing_hl.0][bp_closing_hl.1][tm.0][tm.1]
+      hairpin_score_init + TERMINAL_MISMATCH_SCORES_HAIRPIN[basepair_close.0][basepair_close.1][terminal_mismatch.0][terminal_mismatch.1]
     };
-    hl_fe
-      + if is_au_or_gu(&bp_closing_hl) {
-        HELIX_AU_OR_GU_END_PENALTY_DELTA_FE
+    hairpin_score
+      + if matches_augu(&basepair_close) {
+        HELIX_AUGU_END_PENALTY
       } else {
         0.
       }
   }
 }
 
-pub fn get_special_hl_fe(seq: SeqSlice) -> FreeEnergy {
-  for special_hl_delta_fe in SPECIAL_HL_DELTA_FES.iter() {
-    if special_hl_delta_fe.0 == seq {
-      return special_hl_delta_fe.1;
+pub fn get_special_hairpin_score(seq: SeqSlice) -> Score {
+  for x in HAIRPIN_SCORES_SPECIAL.iter() {
+    if x.0 == seq {
+      return x.1;
     }
   }
   NEG_INFINITY
 }
 
-pub fn get_2_loop_fe(
+pub fn get_2loop_score(
   seq: SeqSlice,
-  pp_closing_loop: &(usize, usize),
-  accessible_pp: &(usize, usize),
-) -> FreeEnergy {
-  if pp_closing_loop.0 + 1 == accessible_pp.0 && pp_closing_loop.1 - 1 == accessible_pp.1 {
-    get_stack_fe(seq, pp_closing_loop, accessible_pp)
-  } else if pp_closing_loop.0 + 1 == accessible_pp.0 || pp_closing_loop.1 - 1 == accessible_pp.1 {
-    get_bl_fe(seq, pp_closing_loop, accessible_pp)
+  pos_pair_close: &(usize, usize),
+  pos_pair_accessible: &(usize, usize),
+) -> Score {
+  if pos_pair_close.0 + 1 == pos_pair_accessible.0 && pos_pair_close.1 - 1 == pos_pair_accessible.1 {
+    get_stack_score(seq, pos_pair_close, pos_pair_accessible)
+  } else if pos_pair_close.0 + 1 == pos_pair_accessible.0 || pos_pair_close.1 - 1 == pos_pair_accessible.1 {
+    get_bulge_score(seq, pos_pair_close, pos_pair_accessible)
   } else {
-    get_il_fe(seq, pp_closing_loop, accessible_pp)
+    get_interior_score(seq, pos_pair_close, pos_pair_accessible)
   }
 }
 
-fn get_stack_fe(
+fn get_stack_score(
   seq: SeqSlice,
-  pp_closing_loop: &(usize, usize),
-  accessible_pp: &(usize, usize),
-) -> FreeEnergy {
-  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
-  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
-  STACK_DELTA_FES[bp_closing_loop.0][bp_closing_loop.1][accessible_bp.0][accessible_bp.1]
+  pos_pair_close: &(usize, usize),
+  pos_pair_accessible: &(usize, usize),
+) -> Score {
+  let basepair_close = (seq[pos_pair_close.0], seq[pos_pair_close.1]);
+  let basepair_accessible = (seq[pos_pair_accessible.0], seq[pos_pair_accessible.1]);
+  STACK_SCORES[basepair_close.0][basepair_close.1][basepair_accessible.0][basepair_accessible.1]
 }
 
-fn get_bl_fe(
+fn get_bulge_score(
   seq: SeqSlice,
-  pp_closing_loop: &(usize, usize),
-  accessible_pp: &(usize, usize),
-) -> FreeEnergy {
-  let bl_len = accessible_pp.0 - pp_closing_loop.0 + pp_closing_loop.1 - accessible_pp.1 - 2;
-  if bl_len == 1 {
-    INIT_BL_DELTA_FES[bl_len] + get_stack_fe(seq, pp_closing_loop, accessible_pp)
+  pos_pair_close: &(usize, usize),
+  pos_pair_accessible: &(usize, usize),
+) -> Score {
+  let bulge_len = pos_pair_accessible.0 - pos_pair_close.0 + pos_pair_close.1 - pos_pair_accessible.1 - 2;
+  if bulge_len == 1 {
+    BULGE_SCORES_INIT[bulge_len] + get_stack_score(seq, pos_pair_close, pos_pair_accessible)
   } else {
-    let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
-    let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
-    INIT_BL_DELTA_FES[bl_len]
-      + if is_au_or_gu(&bp_closing_loop) {
-        HELIX_AU_OR_GU_END_PENALTY_DELTA_FE
+    let basepair_close = (seq[pos_pair_close.0], seq[pos_pair_close.1]);
+    let basepair_accessible = (seq[pos_pair_accessible.0], seq[pos_pair_accessible.1]);
+    BULGE_SCORES_INIT[bulge_len]
+      + if matches_augu(&basepair_close) {
+        HELIX_AUGU_END_PENALTY
       } else {
         0.
       }
-      + if is_au_or_gu(&accessible_bp) {
-        HELIX_AU_OR_GU_END_PENALTY_DELTA_FE
+      + if matches_augu(&basepair_accessible) {
+        HELIX_AUGU_END_PENALTY
       } else {
         0.
       }
   }
 }
 
-fn get_il_fe(
+fn get_interior_score(
   seq: SeqSlice,
-  pp_closing_loop: &(usize, usize),
-  accessible_pp: &(usize, usize),
-) -> FreeEnergy {
-  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
-  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
-  let pair_of_nums_of_unpaired_bases = (
-    accessible_pp.0 - pp_closing_loop.0 - 1,
-    pp_closing_loop.1 - accessible_pp.1 - 1,
+  pos_pair_close: &(usize, usize),
+  pos_pair_accessible: &(usize, usize),
+) -> Score {
+  let basepair_close = (seq[pos_pair_close.0], seq[pos_pair_close.1]);
+  let basepair_accessible = (seq[pos_pair_accessible.0], seq[pos_pair_accessible.1]);
+  let loop_len_pair = (
+    pos_pair_accessible.0 - pos_pair_close.0 - 1,
+    pos_pair_close.1 - pos_pair_accessible.1 - 1,
   );
-  let il_len = pair_of_nums_of_unpaired_bases.0 + pair_of_nums_of_unpaired_bases.1;
-  match pair_of_nums_of_unpaired_bases {
+  let interior_len = loop_len_pair.0 + loop_len_pair.1;
+  match loop_len_pair {
     (1, 1) => {
-      let il = (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]);
-      ONE_VS_1_IL_DELTA_FES[bp_closing_loop.0][bp_closing_loop.1][il.0][il.1][accessible_bp.0]
-        [accessible_bp.1]
+      let interior = (seq[pos_pair_close.0 + 1], seq[pos_pair_close.1 - 1]);
+      INTERIOR_SCORES_1X1[basepair_close.0][basepair_close.1][interior.0][interior.1][basepair_accessible.0]
+        [basepair_accessible.1]
     }
     (1, 2) => {
-      let il = (
-        (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]),
-        seq[pp_closing_loop.1 - 2],
+      let interior = (
+        (seq[pos_pair_close.0 + 1], seq[pos_pair_close.1 - 1]),
+        seq[pos_pair_close.1 - 2],
       );
-      ONE_VS_2_IL_DELTA_FES[bp_closing_loop.0][bp_closing_loop.1][(il.0).0][(il.0).1][il.1]
-        [accessible_bp.0][accessible_bp.1]
+      INTERIOR_SCORES_1X2[basepair_close.0][basepair_close.1][(interior.0).0][(interior.0).1][interior.1]
+        [basepair_accessible.0][basepair_accessible.1]
     }
     (2, 1) => {
-      let il = (
-        (seq[pp_closing_loop.1 - 1], seq[pp_closing_loop.0 + 2]),
-        seq[pp_closing_loop.0 + 1],
+      let interior = (
+        (seq[pos_pair_close.1 - 1], seq[pos_pair_close.0 + 2]),
+        seq[pos_pair_close.0 + 1],
       );
-      let invert_accessible_bp = invert_bp(&accessible_bp);
-      let invert_bp_closing_loop = invert_bp(&bp_closing_loop);
-      ONE_VS_2_IL_DELTA_FES[invert_accessible_bp.0][invert_accessible_bp.1][(il.0).0][(il.0).1]
-        [il.1][invert_bp_closing_loop.0][invert_bp_closing_loop.1]
+      let basepair_accessible_inverse = invert_basepair(&basepair_accessible);
+      let basepair_close_inverse = invert_basepair(&basepair_close);
+      INTERIOR_SCORES_1X2[basepair_accessible_inverse.0][basepair_accessible_inverse.1][(interior.0).0][(interior.0).1]
+        [interior.1][basepair_close_inverse.0][basepair_close_inverse.1]
     }
     (2, 2) => {
-      let il = (
-        (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]),
-        (seq[pp_closing_loop.0 + 2], seq[pp_closing_loop.1 - 2]),
+      let interior = (
+        (seq[pos_pair_close.0 + 1], seq[pos_pair_close.1 - 1]),
+        (seq[pos_pair_close.0 + 2], seq[pos_pair_close.1 - 2]),
       );
-      TWO_VS_2_IL_DELTA_FES[bp_closing_loop.0][bp_closing_loop.1][(il.0).0][(il.0).1][(il.1).0]
-        [(il.1).1][accessible_bp.0][accessible_bp.1]
+      INTERIOR_SCORES_2X2[basepair_close.0][basepair_close.1][(interior.0).0][(interior.0).1][(interior.1).0]
+        [(interior.1).1][basepair_accessible.0][basepair_accessible.1]
     }
     _ => {
-      INIT_IL_DELTA_FES[il_len]
-        + (COEFFICIENT_4_NINIO
+      INTERIOR_SCORES_INIT[interior_len]
+        + (NINIO_COEFF
           * get_abs_diff(
-            pair_of_nums_of_unpaired_bases.0,
-            pair_of_nums_of_unpaired_bases.1,
-          ) as FreeEnergy)
-          .max(MAX_NINIO)
-        + get_il_tm_delta_fe(
+            loop_len_pair.0,
+            loop_len_pair.1,
+          ) as Score)
+          .max(NINIO_MAX)
+        + get_interior_mismatch_score(
           seq,
-          pp_closing_loop,
-          accessible_pp,
-          &pair_of_nums_of_unpaired_bases,
+          pos_pair_close,
+          pos_pair_accessible,
+          &loop_len_pair,
         )
-        + if is_au_or_gu(&bp_closing_loop) {
-          HELIX_AU_OR_GU_END_PENALTY_DELTA_FE
+        + if matches_augu(&basepair_close) {
+          HELIX_AUGU_END_PENALTY
         } else {
           0.
         }
-        + if is_au_or_gu(&accessible_bp) {
-          HELIX_AU_OR_GU_END_PENALTY_DELTA_FE
+        + if matches_augu(&basepair_accessible) {
+          HELIX_AUGU_END_PENALTY
         } else {
           0.
         }
@@ -378,325 +325,313 @@ fn get_il_fe(
   }
 }
 
-pub fn invert_bp(bp: &BasePair) -> BasePair {
-  (bp.1, bp.0)
+pub fn invert_basepair(x: &Basepair) -> Basepair {
+  (x.1, x.0)
 }
 
 pub fn get_abs_diff(x: usize, y: usize) -> usize {
   max(x, y) - min(x, y)
 }
 
-fn get_il_tm_delta_fe(
+fn get_interior_mismatch_score(
   seq: SeqSlice,
-  pp_closing_loop: &(usize, usize),
-  accessible_pp: &(usize, usize),
-  pair_of_nums_of_unpaired_bases: &NumPair,
-) -> FreeEnergy {
-  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
-  let accessible_bp = (seq[accessible_pp.1], seq[accessible_pp.0]);
-  let tm_pair = (
-    (seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]),
-    (seq[accessible_pp.1 + 1], seq[accessible_pp.0 - 1]),
+  pos_pair_close: &(usize, usize),
+  pos_pair_accessible: &(usize, usize),
+  loop_len_pair: &(usize, usize),
+) -> Score {
+  let basepair_close = (seq[pos_pair_close.0], seq[pos_pair_close.1]);
+  let basepair_accessible = (seq[pos_pair_accessible.1], seq[pos_pair_accessible.0]);
+  let terminal_mismatch = (
+    (seq[pos_pair_close.0 + 1], seq[pos_pair_close.1 - 1]),
+    (seq[pos_pair_accessible.1 + 1], seq[pos_pair_accessible.0 - 1]),
   );
-  match *pair_of_nums_of_unpaired_bases {
-    (1, _) => {
-      ONE_VS_MANY_IL_TM_DELTA_FES[bp_closing_loop.0][bp_closing_loop.1][(tm_pair.0).0]
-        [(tm_pair.0).1]
-        + ONE_VS_MANY_IL_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][(tm_pair.1).0]
-          [(tm_pair.1).1]
+  match *loop_len_pair {
+    (1, _) | (_, 1) => {
+      TERMINAL_MISMATCH_SCORES_1XMANY[basepair_close.0][basepair_close.1][(terminal_mismatch.0).0]
+        [(terminal_mismatch.0).1]
+        + TERMINAL_MISMATCH_SCORES_1XMANY[basepair_accessible.0][basepair_accessible.1][(terminal_mismatch.1).0]
+          [(terminal_mismatch.1).1]
     }
-    (_, 1) => {
-      ONE_VS_MANY_IL_TM_DELTA_FES[bp_closing_loop.0][bp_closing_loop.1][(tm_pair.0).0]
-        [(tm_pair.0).1]
-        + ONE_VS_MANY_IL_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][(tm_pair.1).0]
-          [(tm_pair.1).1]
-    }
-    (2, 3) => {
-      TWO_VS_3_IL_TM_DELTA_FES[bp_closing_loop.0][bp_closing_loop.1][(tm_pair.0).0][(tm_pair.0).1]
-        + TWO_VS_3_IL_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][(tm_pair.1).0][(tm_pair.1).1]
-    }
-    (3, 2) => {
-      TWO_VS_3_IL_TM_DELTA_FES[bp_closing_loop.0][bp_closing_loop.1][(tm_pair.0).0][(tm_pair.0).1]
-        + TWO_VS_3_IL_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][(tm_pair.1).0][(tm_pair.1).1]
+    (2, 3) | (3, 2) => {
+      TERMINAL_MISMATCH_SCORES_2X3[basepair_close.0][basepair_close.1][(terminal_mismatch.0).0][(terminal_mismatch.0).1]
+        + TERMINAL_MISMATCH_SCORES_2X3[basepair_accessible.0][basepair_accessible.1][(terminal_mismatch.1).0][(terminal_mismatch.1).1]
     }
     _ => {
-      IL_TM_DELTA_FES[bp_closing_loop.0][bp_closing_loop.1][(tm_pair.0).0][(tm_pair.0).1]
-        + IL_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][(tm_pair.1).0][(tm_pair.1).1]
+      TERMINAL_MISMATCH_SCORES_INTERIOR[basepair_close.0][basepair_close.1][(terminal_mismatch.0).0][(terminal_mismatch.0).1]
+        + TERMINAL_MISMATCH_SCORES_INTERIOR[basepair_accessible.0][basepair_accessible.1][(terminal_mismatch.1).0][(terminal_mismatch.1).1]
     }
   }
 }
 
-pub fn get_ml_closing_basepairing_fe(
+pub fn get_multibranch_close_score(
   seq: SeqSlice,
-  pp_closing_loop: &(usize, usize),
-) -> FreeEnergy {
-  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
-  let invert_bp_closing_loop = invert_bp(&bp_closing_loop);
-  let invert_stacking_bp = invert_bp(&(seq[pp_closing_loop.0 + 1], seq[pp_closing_loop.1 - 1]));
-  let ml_tm_delta_fe = ML_TM_DELTA_FES[invert_bp_closing_loop.0][invert_bp_closing_loop.1]
-    [invert_stacking_bp.0][invert_stacking_bp.1];
-  CONST_4_INIT_ML_DELTA_FE
-    + ml_tm_delta_fe
-    + if is_au_or_gu(&bp_closing_loop) {
-      HELIX_AU_OR_GU_END_PENALTY_DELTA_FE
+  pos_pair_close: &(usize, usize),
+) -> Score {
+  let basepair_close = (seq[pos_pair_close.0], seq[pos_pair_close.1]);
+  let basepair_close_inverse = invert_basepair(&basepair_close);
+  let basepair_stack_inverse = invert_basepair(&(seq[pos_pair_close.0 + 1], seq[pos_pair_close.1 - 1]));
+  let terminal_mismatch_score = TERMINAL_MISMATCH_SCORES_MULTIBRANCH[basepair_close_inverse.0][basepair_close_inverse.1]
+    [basepair_stack_inverse.0][basepair_stack_inverse.1];
+  INIT_MULTIBRANCH_BASE
+    + terminal_mismatch_score
+    + if matches_augu(&basepair_close) {
+      HELIX_AUGU_END_PENALTY
     } else {
       0.
     }
 }
 
-pub fn get_ml_or_el_accessible_basepairing_fe(
+pub fn get_accessible_score(
   seq: SeqSlice,
-  pp_accessible: &(usize, usize),
-  use_sentinel_nucs: bool,
-) -> FreeEnergy {
+  pos_pair_accessible: &(usize, usize),
+  uses_sentinel_bases: bool,
+) -> Score {
   let seq_len = seq.len();
-  let five_prime_end = usize::from(use_sentinel_nucs);
-  let three_prime_end = seq_len - if use_sentinel_nucs { 2 } else { 1 };
-  let accessible_bp = (seq[pp_accessible.0], seq[pp_accessible.1]);
-  let fe = if pp_accessible.0 > five_prime_end && pp_accessible.1 < three_prime_end {
-    ML_TM_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[pp_accessible.0 - 1]]
-      [seq[pp_accessible.1 + 1]]
-  } else if pp_accessible.0 > five_prime_end {
-    FIVE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[pp_accessible.0 - 1]]
-  } else if pp_accessible.1 < three_prime_end {
-    THREE_PRIME_DE_DELTA_FES[accessible_bp.0][accessible_bp.1][seq[pp_accessible.1 + 1]]
+  let end_5prime = usize::from(uses_sentinel_bases);
+  let end_3prime = seq_len - if uses_sentinel_bases { 2 } else { 1 };
+  let basepair_accessible = (seq[pos_pair_accessible.0], seq[pos_pair_accessible.1]);
+  let score = if pos_pair_accessible.0 > end_5prime && pos_pair_accessible.1 < end_3prime {
+    TERMINAL_MISMATCH_SCORES_MULTIBRANCH[basepair_accessible.0][basepair_accessible.1][seq[pos_pair_accessible.0 - 1]]
+      [seq[pos_pair_accessible.1 + 1]]
+  } else if pos_pair_accessible.0 > end_5prime {
+    DANGLING_SCORES_5PRIME[basepair_accessible.0][basepair_accessible.1][seq[pos_pair_accessible.0 - 1]]
+  } else if pos_pair_accessible.1 < end_3prime {
+    DANGLING_SCORES_3PRIME[basepair_accessible.0][basepair_accessible.1][seq[pos_pair_accessible.1 + 1]]
   } else {
     0.
   };
-  fe + if is_au_or_gu(&accessible_bp) {
-    HELIX_AU_OR_GU_END_PENALTY_DELTA_FE
+  score + if matches_augu(&basepair_accessible) {
+    HELIX_AUGU_END_PENALTY
   } else {
     0.
   }
 }
 
-pub fn get_hl_fe_contra(
+pub fn get_hairpin_score_contra(
   seq: SeqSlice,
-  pp_closing_loop: &(usize, usize),
-  struct_feature_score_sets: &StructFeatureCountSets,
-) -> FreeEnergy {
-  let hl_len = pp_closing_loop.1 - pp_closing_loop.0 - 1;
-  struct_feature_score_sets.hairpin_loop_length_counts_cumulative[hl_len.min(CONTRA_MAX_LOOP_LEN)]
-    + get_contra_junction_fe_single(seq, pp_closing_loop, struct_feature_score_sets)
+  pos_pair_close: &(usize, usize),
+  fold_score_sets: &FoldScoreSets,
+) -> Score {
+  let hairpin_len = pos_pair_close.1 - pos_pair_close.0 - 1;
+  fold_score_sets.hairpin_scores_len_cumulative[hairpin_len.min(MAX_LOOP_LEN)]
+    + get_junction_score_single(seq, pos_pair_close, fold_score_sets)
 }
 
-pub fn get_2_loop_fe_contra(
+pub fn get_2loop_score_contra(
   seq: SeqSlice,
-  pp_closing_loop: &(usize, usize),
-  accessible_pp: &(usize, usize),
-  struct_feature_score_sets: &StructFeatureCountSets,
-) -> FreeEnergy {
-  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
-  let fe = if pp_closing_loop.0 + 1 == accessible_pp.0 && pp_closing_loop.1 - 1 == accessible_pp.1 {
-    get_stack_fe_contra(
+  pos_pair_close: &(usize, usize),
+  pos_pair_accessible: &(usize, usize),
+  fold_score_sets: &FoldScoreSets,
+) -> Score {
+  let basepair_accessible = (seq[pos_pair_accessible.0], seq[pos_pair_accessible.1]);
+  let score = if pos_pair_close.0 + 1 == pos_pair_accessible.0 && pos_pair_close.1 - 1 == pos_pair_accessible.1 {
+    get_stack_score_contra(
       seq,
-      pp_closing_loop,
-      accessible_pp,
-      struct_feature_score_sets,
+      pos_pair_close,
+      pos_pair_accessible,
+      fold_score_sets,
     )
-  } else if pp_closing_loop.0 + 1 == accessible_pp.0 || pp_closing_loop.1 - 1 == accessible_pp.1 {
-    get_bl_fe_contra(
+  } else if pos_pair_close.0 + 1 == pos_pair_accessible.0 || pos_pair_close.1 - 1 == pos_pair_accessible.1 {
+    get_bulge_score_contra(
       seq,
-      pp_closing_loop,
-      accessible_pp,
-      struct_feature_score_sets,
+      pos_pair_close,
+      pos_pair_accessible,
+      fold_score_sets,
     )
   } else {
-    get_il_fe_contra(
+    get_interior_score_contra(
       seq,
-      pp_closing_loop,
-      accessible_pp,
-      struct_feature_score_sets,
+      pos_pair_close,
+      pos_pair_accessible,
+      fold_score_sets,
     )
   };
-  fe + struct_feature_score_sets.base_pair_count_mat[accessible_bp.0][accessible_bp.1]
+  score + fold_score_sets.basepair_scores[basepair_accessible.0][basepair_accessible.1]
 }
 
-pub fn get_stack_fe_contra(
+pub fn get_stack_score_contra(
   seq: SeqSlice,
-  pp_closing_loop: &(usize, usize),
-  accessible_pp: &(usize, usize),
-  struct_feature_score_sets: &StructFeatureCountSets,
-) -> FreeEnergy {
-  let bp_closing_loop = (seq[pp_closing_loop.0], seq[pp_closing_loop.1]);
-  let accessible_bp = (seq[accessible_pp.0], seq[accessible_pp.1]);
-  struct_feature_score_sets.stack_count_mat[bp_closing_loop.0][bp_closing_loop.1][accessible_bp.0]
-    [accessible_bp.1]
+  pos_pair_close: &(usize, usize),
+  pos_pair_accessible: &(usize, usize),
+  fold_score_sets: &FoldScoreSets,
+) -> Score {
+  let basepair_close = (seq[pos_pair_close.0], seq[pos_pair_close.1]);
+  let basepair_accessible = (seq[pos_pair_accessible.0], seq[pos_pair_accessible.1]);
+  fold_score_sets.stack_scores[basepair_close.0][basepair_close.1][basepair_accessible.0]
+    [basepair_accessible.1]
 }
 
-pub fn get_bl_fe_contra(
+pub fn get_bulge_score_contra(
   seq: SeqSlice,
-  pp_closing_loop: &(usize, usize),
-  accessible_pp: &(usize, usize),
-  struct_feature_score_sets: &StructFeatureCountSets,
-) -> FreeEnergy {
-  let bl_len = accessible_pp.0 - pp_closing_loop.0 + pp_closing_loop.1 - accessible_pp.1 - 2;
-  let fe = if bl_len == 1 {
-    struct_feature_score_sets.bulge_loop_0x1_length_counts[if accessible_pp.0
-      - pp_closing_loop.0
+  pos_pair_close: &(usize, usize),
+  pos_pair_accessible: &(usize, usize),
+  fold_score_sets: &FoldScoreSets,
+) -> Score {
+  let bulge_len = pos_pair_accessible.0 - pos_pair_close.0 + pos_pair_close.1 - pos_pair_accessible.1 - 2;
+  let score = if bulge_len == 1 {
+    fold_score_sets.bulge_scores_0x1[if pos_pair_accessible.0
+      - pos_pair_close.0
       - 1
       == 1
     {
-      seq[pp_closing_loop.0 + 1]
+      seq[pos_pair_close.0 + 1]
     } else {
-      seq[pp_closing_loop.1 - 1]
+      seq[pos_pair_close.1 - 1]
     }]
   } else {
     0.
   };
-  fe + struct_feature_score_sets.bulge_loop_length_counts_cumulative[bl_len - 1]
-    + get_contra_junction_fe_single(seq, pp_closing_loop, struct_feature_score_sets)
-    + get_contra_junction_fe_single(
+  score + fold_score_sets.bulge_scores_len_cumulative[bulge_len - 1]
+    + get_junction_score_single(seq, pos_pair_close, fold_score_sets)
+    + get_junction_score_single(
       seq,
-      &(accessible_pp.1, accessible_pp.0),
-      struct_feature_score_sets,
+      &(pos_pair_accessible.1, pos_pair_accessible.0),
+      fold_score_sets,
     )
 }
 
-pub fn get_il_fe_contra(
+pub fn get_interior_score_contra(
   seq: SeqSlice,
-  pp_closing_loop: &(usize, usize),
-  accessible_pp: &(usize, usize),
-  struct_feature_score_sets: &StructFeatureCountSets,
-) -> FreeEnergy {
-  let pair_of_nums_of_unpaired_bases = (
-    accessible_pp.0 - pp_closing_loop.0 - 1,
-    pp_closing_loop.1 - accessible_pp.1 - 1,
+  pos_pair_close: &(usize, usize),
+  pos_pair_accessible: &(usize, usize),
+  fold_score_sets: &FoldScoreSets,
+) -> Score {
+  let loop_len_pair = (
+    pos_pair_accessible.0 - pos_pair_close.0 - 1,
+    pos_pair_close.1 - pos_pair_accessible.1 - 1,
   );
-  let il_len = pair_of_nums_of_unpaired_bases.0 + pair_of_nums_of_unpaired_bases.1;
-  let fe = if pair_of_nums_of_unpaired_bases.0 == pair_of_nums_of_unpaired_bases.1 {
-    let fe_3 = if il_len == 2 {
-      struct_feature_score_sets.interior_loop_1x1_length_count_mat[seq[pp_closing_loop.0 + 1]]
-        [seq[pp_closing_loop.1 - 1]]
+  let interior_len = loop_len_pair.0 + loop_len_pair.1;
+  let score = if loop_len_pair.0 == loop_len_pair.1 {
+    let score_1x1 = if interior_len == 2 {
+      fold_score_sets.interior_scores_1x1[seq[pos_pair_close.0 + 1]]
+        [seq[pos_pair_close.1 - 1]]
     } else {
       0.
     };
-    fe_3
-      + struct_feature_score_sets.interior_loop_length_counts_symm_cumulative
-        [pair_of_nums_of_unpaired_bases.0 - 1]
+    score_1x1
+      + fold_score_sets.interior_scores_symmetric_cumulative
+        [loop_len_pair.0 - 1]
   } else {
-    struct_feature_score_sets.interior_loop_length_counts_asymm_cumulative[get_abs_diff(
-      pair_of_nums_of_unpaired_bases.0,
-      pair_of_nums_of_unpaired_bases.1,
+    fold_score_sets.interior_scores_asymmetric_cumulative[get_abs_diff(
+      loop_len_pair.0,
+      loop_len_pair.1,
     ) - 1]
   };
-  let fe_2 = if pair_of_nums_of_unpaired_bases.0 <= 4 && pair_of_nums_of_unpaired_bases.1 <= 4 {
-    struct_feature_score_sets.interior_loop_length_count_mat_explicit
-      [pair_of_nums_of_unpaired_bases.0 - 1][pair_of_nums_of_unpaired_bases.1 - 1]
+  let score_explicit = if loop_len_pair.0 <= MAX_INTERIOR_EXPLICIT && loop_len_pair.1 <= MAX_INTERIOR_EXPLICIT {
+    fold_score_sets.interior_scores_explicit
+      [loop_len_pair.0 - 1][loop_len_pair.1 - 1]
   } else {
     0.
   };
-  fe + fe_2
-    + struct_feature_score_sets.interior_loop_length_counts_cumulative[il_len - 2]
-    + get_contra_junction_fe_single(seq, pp_closing_loop, struct_feature_score_sets)
-    + get_contra_junction_fe_single(
+  score + score_explicit
+    + fold_score_sets.interior_scores_len_cumulative[interior_len - 2]
+    + get_junction_score_single(seq, pos_pair_close, fold_score_sets)
+    + get_junction_score_single(
       seq,
-      &(accessible_pp.1, accessible_pp.0),
-      struct_feature_score_sets,
+      &(pos_pair_accessible.1, pos_pair_accessible.0),
+      fold_score_sets,
     )
 }
 
-pub fn get_contra_junction_fe_multi(
+pub fn get_junction_score(
   seq: SeqSlice,
-  pp: &(usize, usize),
-  seq_len: usize,
-  use_sentinel_nucs: bool,
-  struct_feature_score_sets: &StructFeatureCountSets,
-) -> FreeEnergy {
-  let bp = (seq[pp.0], seq[pp.1]);
-  let five_prime_end = usize::from(use_sentinel_nucs);
-  let three_prime_end = seq_len - if use_sentinel_nucs { 2 } else { 1 };
-  get_contra_helix_closing_fe(&bp, struct_feature_score_sets)
-    + if pp.0 < three_prime_end {
-      struct_feature_score_sets.left_dangle_count_mat[bp.0][bp.1][seq[pp.0 + 1]]
+  pos_pair: &(usize, usize),
+  uses_sentinel_bases: bool,
+  fold_score_sets: &FoldScoreSets,
+) -> Score {
+  let seq_len = seq.len();
+  let basepair = (seq[pos_pair.0], seq[pos_pair.1]);
+  let end_5prime = usize::from(uses_sentinel_bases);
+  let end_3prime = seq_len - if uses_sentinel_bases { 2 } else { 1 };
+  get_helix_close_score(&basepair, fold_score_sets)
+    + if pos_pair.0 < end_3prime {
+      fold_score_sets.dangling_scores_left[basepair.0][basepair.1][seq[pos_pair.0 + 1]]
     } else {
       0.
     }
-    + if pp.1 > five_prime_end {
-      struct_feature_score_sets.right_dangle_count_mat[bp.0][bp.1][seq[pp.1 - 1]]
+    + if pos_pair.1 > end_5prime {
+      fold_score_sets.dangling_scores_right[basepair.0][basepair.1][seq[pos_pair.1 - 1]]
     } else {
       0.
     }
 }
 
-pub fn get_contra_junction_fe_single(
-  seq: SeqSlice,
-  pp: &(usize, usize),
-  struct_feature_score_sets: &StructFeatureCountSets,
-) -> FreeEnergy {
-  let bp = (seq[pp.0], seq[pp.1]);
-  get_contra_helix_closing_fe(&bp, struct_feature_score_sets)
-    + get_contra_terminal_mismatch_fe(
-      &bp,
-      &(seq[pp.0 + 1], seq[pp.1 - 1]),
-      struct_feature_score_sets,
+pub fn get_junction_score_single(
+  x: SeqSlice,
+  y: &(usize, usize),
+  z: &FoldScoreSets,
+) -> Score {
+  let a = (x[y.0], x[y.1]);
+  get_helix_close_score(&a, z)
+    + get_terminal_mismatch_score(
+      &a,
+      &(x[y.0 + 1], x[y.1 - 1]),
+      z,
     )
 }
 
-pub fn get_contra_helix_closing_fe(
-  bp: &BasePair,
-  struct_feature_score_sets: &StructFeatureCountSets,
-) -> FreeEnergy {
-  struct_feature_score_sets.helix_end_count_mat[bp.0][bp.1]
+pub fn get_helix_close_score(
+  x: &Basepair,
+  y: &FoldScoreSets,
+) -> Score {
+  y.helix_close_scores[x.0][x.1]
 }
 
-pub fn get_contra_terminal_mismatch_fe(
-  bp: &BasePair,
-  mismatch_bp: &BasePair,
-  struct_feature_score_sets: &StructFeatureCountSets,
-) -> FreeEnergy {
-  struct_feature_score_sets.terminal_mismatch_count_mat[bp.0][bp.1][mismatch_bp.0][mismatch_bp.1]
+pub fn get_terminal_mismatch_score(
+  x: &Basepair,
+  y: &Basepair,
+  z: &FoldScoreSets,
+) -> Score {
+  z.terminal_mismatch_scores[x.0][x.1][y.0][y.1]
 }
 
-pub fn is_rna_base(base: Base) -> bool {
-  matches!(base, A | U | G | C)
+pub fn matches_augu(x: &Basepair) -> bool {
+  *x == AU || *x == UA || *x == GU || *x == UG
 }
 
-pub fn is_au_or_gu(bp: &BasePair) -> bool {
-  *bp == AU || *bp == UA || *bp == GU || *bp == UG
-}
-
-pub fn convert(seq: &[u8]) -> Seq {
-  let mut new_seq = Seq::new();
-  for &c in seq {
-    let new_base = match c {
-      SMALL_A | BIG_A => A,
-      SMALL_C | BIG_C => C,
-      SMALL_G | BIG_G => G,
-      SMALL_U | BIG_U => U,
+pub fn bytes2seq(x: &[Char]) -> Seq {
+  let mut y = Seq::new();
+  for &x in x {
+    let x = match x {
+      A_LOWER | A_UPPER => A,
+      C_LOWER | C_UPPER => C,
+      G_LOWER | G_UPPER => G,
+      U_LOWER | U_UPPER => U,
       _ => {
         panic!();
       }
     };
-    new_seq.push(new_base);
+    y.push(x);
   }
-  new_seq
+  y
 }
 
 #[inline]
-pub fn logsumexp(sum: &mut FreeEnergy, new_term: FreeEnergy) {
-  if !new_term.is_finite() {
+pub fn logsumexp(sum: &mut Score, x: Score) {
+  if !x.is_finite() {
     return;
   }
   *sum = if !sum.is_finite() {
-    new_term
+    x
   } else {
-    let max = sum.max(new_term);
-    let min = sum.min(new_term);
-    let diff = max - min;
-    min
-      + if diff >= LOGSUMEXP_THRES_UPPER {
-        diff
+    let y = sum.min(x);
+    let z = sum.max(x) - y;
+    y
+      + if z >= LOGSUMEXP_THRESHOLD_UPPER {
+        z
       } else {
-        // diff.exp().ln_1p()
-        ln_exp_1p(diff)
+        // Equivalent to z.exp().ln_1p()
+        ln_exp_1p(z)
       }
   };
 }
 
-// Approximated (x.exp() + 1).ln() from CONTRAfold, eliminating ln() and exp() (assuming 0 <= x <= LOGSUMEXP_THRES_UPPER)
+/*
+ * Approximated (x.exp() + 1).ln() from CONTRAfold, eliminating ln() and exp()
+ * (assuming 0 <= x <= LOGSUMEXP_THRESHOLD_UPPER)
+ */
 #[inline]
-pub fn ln_exp_1p(x: FreeEnergy) -> FreeEnergy {
+pub fn ln_exp_1p(x: Score) -> Score {
   if x < 3.379_25 {
     if x < 1.632_015_8 {
       if x < 0.661_536_75 {
@@ -724,7 +659,7 @@ pub fn ln_exp_1p(x: FreeEnergy) -> FreeEnergy {
 
 // Approximated x.exp() from CONTRAfold
 #[inline]
-pub fn expf(x: FreeEnergy) -> FreeEnergy {
+pub fn expf(x: Score) -> Score {
   if x < -2.491_503_5 {
     if x < -5.862_282_3 {
       if x < -9.91152 {
@@ -750,101 +685,101 @@ pub fn expf(x: FreeEnergy) -> FreeEnergy {
   }
 }
 
-pub fn read_sa_from_clustal_file(clustal_file_path: &Path) -> (Cols, SeqIds) {
+pub fn read_align_clustal(clustal_file_path: &Path) -> (Cols, SeqIds) {
   let mut cols = Cols::new();
   let mut seq_ids = SeqIds::new();
-  let reader_2_clustal_file = BufReader::new(File::open(clustal_file_path).unwrap());
+  let reader = BufReader::new(File::open(clustal_file_path).unwrap());
   let mut seq_pointer = 0;
   let mut pos_pointer = 0;
-  let mut are_seq_ids_read = false;
-  for (i, string) in reader_2_clustal_file.lines().enumerate() {
-    let string = string.unwrap();
-    if i == 0 || string.is_empty() || string.starts_with(' ') {
+  let mut has_read_seq_ids = false;
+  for (i, line) in reader.lines().enumerate() {
+    let line = line.unwrap();
+    if i == 0 || line.is_empty() || line.starts_with(' ') {
       if !cols.is_empty() {
         seq_pointer = 0;
         pos_pointer = cols.len();
-        are_seq_ids_read = true;
+        has_read_seq_ids = true;
       }
       continue;
     }
-    let mut substrings = string.split_whitespace();
-    let substring = substrings.next().unwrap();
-    if !are_seq_ids_read {
-      seq_ids.push(String::from(substring));
+    let mut lines = line.split_whitespace();
+    let line = lines.next().unwrap();
+    if !has_read_seq_ids {
+      seq_ids.push(String::from(line));
     }
-    let substring = substrings.next().unwrap();
+    let line = lines.next().unwrap();
     if seq_pointer == 0 {
-      for sa_char in substring.chars() {
-        cols.push(vec![convert_sa_char(sa_char as u8)]);
+      for x in line.chars() {
+        cols.push(vec![align_char2base(x as Char)]);
       }
       seq_pointer += 1;
     } else {
-      for (j, sa_char) in substring.chars().enumerate() {
-        cols[pos_pointer + j].push(convert_sa_char(sa_char as u8));
+      for (j, x) in line.chars().enumerate() {
+        cols[pos_pointer + j].push(align_char2base(x as Char));
       }
     }
   }
   (cols, seq_ids)
 }
 
-pub fn read_sa_from_fasta_file(fasta_file_path: &Path) -> (Cols, SeqIds) {
+pub fn read_align_fasta(fasta_file_path: &Path) -> (Cols, SeqIds) {
   let mut cols = Cols::new();
   let mut seq_ids = SeqIds::new();
-  let reader_2_fasta_file = BufReader::new(File::open(fasta_file_path).unwrap());
+  let reader = BufReader::new(File::open(fasta_file_path).unwrap());
   let mut seqs = Vec::<Seq>::new();
-  for (i, string) in reader_2_fasta_file.split(b'>').enumerate() {
-    let string = String::from_utf8(string.unwrap()).unwrap();
+  for (i, split) in reader.split(b'>').enumerate() {
+    let split = String::from_utf8(split.unwrap()).unwrap();
     if i == 0 {
       continue;
     }
-    let substrings: Vec<&str> = string.split_whitespace().collect();
-    let seq_id = substrings[0];
+    let splits: Vec<&str> = split.split_whitespace().collect();
+    let seq_id = splits[0];
     seq_ids.push(SeqId::from(seq_id));
-    let seq = substrings[1..].join("");
-    let seq = seq.chars().map(|x| convert_sa_char(x as u8)).collect();
+    let seq = splits[1..].join("");
+    let seq = seq.chars().map(|x| align_char2base(x as Char)).collect();
     seqs.push(seq);
   }
   let align_len = seqs[0].len();
   for i in 0..align_len {
-    let col = seqs.iter().map(|x| x[i]).collect();
-    cols.push(col);
+    let x = seqs.iter().map(|x| x[i]).collect();
+    cols.push(x);
   }
   (cols, seq_ids)
 }
 
-pub fn read_sa_from_stockholm_file(stockholm_file_path: &Path) -> (Cols, SeqIds) {
+pub fn read_align_stockholm(stockholm_file_path: &Path) -> (Cols, SeqIds) {
   let mut cols = Cols::new();
   let mut seq_ids = SeqIds::new();
-  let reader_2_stockholm_file = BufReader::new(File::open(stockholm_file_path).unwrap());
+  let reader = BufReader::new(File::open(stockholm_file_path).unwrap());
   let mut seqs = Vec::<Seq>::new();
-  for string in reader_2_stockholm_file.lines() {
-    let string = string.unwrap();
-    if string.is_empty() || string.starts_with('#') {
+  for line in reader.lines() {
+    let line = line.unwrap();
+    if line.is_empty() || line.starts_with('#') {
       continue;
-    } else if string.starts_with("//") {
+    } else if line.starts_with("//") {
       break;
     }
-    let substrings: Vec<&str> = string.split_whitespace().collect();
-    let seq_id = substrings[0];
+    let lines: Vec<&str> = line.split_whitespace().collect();
+    let seq_id = lines[0];
     seq_ids.push(SeqId::from(seq_id));
-    let seq = substrings[1];
-    let seq = seq.chars().map(|x| convert_sa_char(x as u8)).collect();
+    let seq = lines[1];
+    let seq = seq.chars().map(|x| align_char2base(x as Char)).collect();
     seqs.push(seq);
   }
   let align_len = seqs[0].len();
   for i in 0..align_len {
-    let col = seqs.iter().map(|x| x[i]).collect();
-    cols.push(col);
+    let x = seqs.iter().map(|x| x[i]).collect();
+    cols.push(x);
   }
   (cols, seq_ids)
 }
 
-pub fn convert_sa_char(c: u8) -> Base {
-  match c {
-    SMALL_A | BIG_A => A,
-    SMALL_C | BIG_C => C,
-    SMALL_G | BIG_G => G,
-    SMALL_U | BIG_U => U,
+pub fn align_char2base(x: Char) -> Base {
+  match x {
+    A_LOWER | A_UPPER => A,
+    C_LOWER | C_UPPER => C,
+    G_LOWER | G_UPPER => G,
+    U_LOWER | U_UPPER => U,
     _ => PSEUDO_BASE,
   }
 }
